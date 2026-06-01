@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第9章：暗号とHTTPSの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#dc2626;--accent2:#f87171;}
+.cipher-box{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin:12px 0}
+.cipher-char{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;border:2px solid;transition:all 0.3s}
+.cipher-char.plain{background:#fef2f2;border-color:#fca5a5;color:#dc2626}
+.cipher-char.encrypted{background:linear-gradient(135deg,#dc2626,#f87171);border-color:transparent;color:white}
+.cipher-char.decrypted{background:#f0fdf4;border-color:#86efac;color:#16a34a}
+.key-badge{background:linear-gradient(135deg,#d97706,#fbbf24);color:white;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:800;display:inline-block}
+.tls-step{display:flex;align-items:center;gap:12px;padding:10px 14px;background:white;border:2px solid #fca5a5;border-radius:12px;margin-bottom:8px;opacity:0;transition:all 0.4s}
+.tls-step.show{opacity:1}
+.tls-icon{font-size:22px}
+.tls-text{font-size:13px;font-weight:700;color:#2d2040}
+.tls-sub{font-size:11px;color:#9b8db4;margin-top:2px}
+.padlock{font-size:48px;text-align:center;transition:all 0.5s;filter:grayscale(1)}
+.padlock.locked{filter:none;animation:pulse 1s ease-in-out}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+.rsa-box{background:white;border:2px solid #fca5a5;border-radius:12px;padding:14px;text-align:center}
+.rsa-key{font-family:monospace;font-size:13px;padding:8px 12px;border-radius:8px;margin:6px 0;font-weight:700}
+.rsa-key.pub{background:#fef2f2;color:#dc2626;border:1.5px solid #fca5a5}
+.rsa-key.priv{background:#f9f7ff;color:#7c3aed;border:1.5px solid #ddd6fe}
+.url-bar{background:#1e1b2e;border-radius:10px;padding:10px 16px;font-family:monospace;font-size:14px;display:flex;align-items:center;gap:10px}
+.url-bar .lock-icon{font-size:18px}
+.url-bar .url-text{color:#86efac}
+.url-bar .http-warn{color:#fb923c}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第9章 · 暗号とHTTPSの仕組み</div>
+  <div class="scene-title">🔐 なぜネット通信は安全なの？</div>
+  <div class="scene-desc">ネットショッピングでクレジットカードを入力しても大丈夫なのはなぜ？<strong>暗号化</strong>がデータを守っている。古代から現代まで、暗号の進化を体験しよう！</div>
+  <div class="stage">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:#9b8db4;margin-bottom:8px">URLバーを見てみよう</div>
+      <div class="url-bar" style="justify-content:center">
+        <span class="lock-icon">🔒</span>
+        <span class="url-text">https://</span><span style="color:#e2e0f0">example.com</span>
+      </div>
+      <div style="font-size:12px;color:#9b8db4;margin-top:6px">↑ 🔒マーク = 通信が暗号化されている</div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <div style="text-align:center;background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:12px 20px">
+        <div style="font-size:28px">😈</div>
+        <div style="font-size:12px;color:#dc2626;font-weight:700">HTTP（暗号なし）</div>
+        <div style="font-size:11px;color:#9b8db4">盗み見される可能性あり！</div>
+      </div>
+      <div style="font-size:24px;align-self:center;color:#dc2626">→</div>
+      <div style="text-align:center;background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:12px 20px">
+        <div style="font-size:28px">😊</div>
+        <div style="font-size:12px;color:#16a34a;font-weight:700">HTTPS（TLS暗号化）</div>
+        <div style="font-size:11px;color:#9b8db4">解読不可能！安全✅</div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：シーザー暗号 →</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第9章 · Step 1/4</div>
+  <div class="scene-title">🏛️ Step 1：シーザー暗号 — 暗号の始まり</div>
+  <div class="scene-desc">古代ローマのカエサル（シーザー）が使った暗号。アルファベットを決まった数だけずらして暗号化する。シンプルだけど歴史上最初の暗号！</div>
+  <div class="stage">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:700;color:#dc2626">シフト数:</label>
+      <input type="range" min="1" max="25" value="3" id="shift-sl" oninput="updateCaesar()" style="accent-color:#dc2626;width:140px">
+      <span id="shift-val" style="background:linear-gradient(135deg,#dc2626,#f87171);color:white;border-radius:20px;padding:3px 12px;font-weight:800;font-size:14px">+3</span>
+    </div>
+    <div style="margin-bottom:8px;font-size:12px;color:#9b8db4;font-weight:700">平文（暗号化前）</div>
+    <div class="cipher-box" id="plain-chars"></div>
+    <div style="text-align:center;font-size:24px;margin:8px 0">⬇️ <span id="shift-label" style="font-size:13px;color:#dc2626;font-weight:700">3文字ずらす</span></div>
+    <div style="margin-bottom:8px;font-size:12px;color:#9b8db4;font-weight:700">暗号文</div>
+    <div class="cipher-box" id="enc-chars"></div>
+    <div class="info-box" style="margin-top:12px">💡 シーザー暗号は<strong>26通り</strong>しかパターンがない。全部試せば解ける（総当たり攻撃）。<br>現代の暗号は 2^256 通り以上あって、宇宙の原子の数より多い！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：公開鍵暗号 →</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第9章 · Step 2/4</div>
+  <div class="scene-title">🗝️ Step 2：公開鍵暗号（RSA）</div>
+  <div class="scene-desc">シーザー暗号の問題：<strong>鍵を共有する</strong>のが危険。「鍵を送る途中で盗まれたら？」<br><strong>RSA公開鍵暗号</strong>は「暗号化は誰でもできる、復号できるのは自分だけ」という魔法のような仕組み！</div>
+  <div class="stage">
+    <div style="display:flex;gap:12px;justify-content:center;align-items:flex-start;flex-wrap:wrap">
+      <div class="rsa-box" style="flex:1;min-width:160px">
+        <div style="font-size:20px">🌐 公開鍵</div>
+        <div style="font-size:12px;color:#9b8db4;margin-bottom:8px">誰でも使える・公開OK</div>
+        <div class="rsa-key pub">e=65537<br>n=3233</div>
+        <div style="font-size:12px;color:#dc2626;margin-top:6px">暗号化のみ可能</div>
+      </div>
+      <div style="align-self:center;font-size:24px">🔐</div>
+      <div class="rsa-box" style="flex:1;min-width:160px">
+        <div style="font-size:20px">🔑 秘密鍵</div>
+        <div style="font-size:12px;color:#9b8db4;margin-bottom:8px">本人だけが持つ</div>
+        <div class="rsa-key priv">d=2753<br>n=3233</div>
+        <div style="font-size:12px;color:#7c3aed;margin-top:6px">復号のみ可能</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;background:#f9f7ff;border-radius:12px;padding:14px">
+      <div style="font-size:13px;font-weight:800;color:#7c3aed;margin-bottom:8px">🎯 仕組みのたとえ</div>
+      <div style="font-size:13px;color:#6b5f80;line-height:1.8">
+        📮 <strong>南京錠（公開鍵）</strong>を世界中に配る<br>
+        📦 誰でもその南京錠をかけて荷物を送れる<br>
+        🔑 <strong>鍵（秘密鍵）</strong>は自分だけが持っている<br>
+        ✅ 開けられるのは自分だけ！
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:10px">💡 RSAの安全性は「大きな数の素因数分解が難しい」という数学的事実に基づく。<br>例：3233 = 61 × 53（わかりやすい例）。実際は数百桁の数を使う！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：TLSハンドシェイク →</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第9章 · Step 3/4</div>
+  <div class="scene-title">🤝 Step 3：TLSで安全な通信を確立する</div>
+  <div class="scene-desc">HTTPSは<strong>TLS（Transport Layer Security）</strong>というプロトコルで保護される。接続のたびに「ハンドシェイク」で鍵を交換してから通信開始！</div>
+  <div class="stage">
+    <div style="text-align:center;margin-bottom:12px">
+      <div class="padlock" id="padlock">🔓</div>
+      <div id="padlock-status" style="font-size:13px;color:#9b8db4;margin-top:4px">まだ接続していない...</div>
+    </div>
+    <div id="tls-steps">
+      <div class="tls-step" id="t1"><span class="tls-icon">👋</span><div><div class="tls-text">Client Hello — ブラウザ：「TLS 1.3が使えます」</div><div class="tls-sub">対応している暗号スイート・乱数を送る</div></div></div>
+      <div class="tls-step" id="t2"><span class="tls-icon">🏷️</span><div><div class="tls-text">Server Hello — サーバー：「では AES-256 を使おう」</div><div class="tls-sub">証明書（公開鍵入り）と乱数を送る</div></div></div>
+      <div class="tls-step" id="t3"><span class="tls-icon">✅</span><div><div class="tls-text">証明書検証 — ブラウザ：「本物のサーバーを確認！」</div><div class="tls-sub">認証局（CA）の署名を確認する</div></div></div>
+      <div class="tls-step" id="t4"><span class="tls-icon">🔑</span><div><div class="tls-text">鍵交換 — セッション鍵を安全に共有</div><div class="tls-sub">Diffie-Hellman 鍵交換で共通鍵を生成</div></div></div>
+      <div class="tls-step" id="t5"><span class="tls-icon">🔒</span><div><div class="tls-text">暗号化通信開始！ — AES-256で全データを暗号化</div><div class="tls-sub">これ以降のHTTP通信はすべて暗号化される</div></div></div>
+    </div>
+    <button class="btn-action" style="margin-top:12px" onclick="startTLS()">▶ TLSハンドシェイクを見る！</button>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第9章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#fef2f2,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. シーザー暗号の弱点は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">計算が遅い</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">パターンが26通りしかなく総当たりで解ける</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">文字が消えてしまう</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">アルファベットしか使えない</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#fef2f2,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. 公開鍵暗号の「公開鍵」でできることは？ 🗝️</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">暗号化のみ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">復号のみ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">暗号化も復号も</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">何もできない</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第9章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第9章クリア！</h2>
+    <p>シーザー暗号からTLSまで、<br>暗号の進化と仕組みを学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>シーザー暗号は文字をずらすだけ（弱い！）</li>
+        <li>公開鍵暗号は「誰でも暗号化、自分だけ復号」</li>
+        <li>RSAは素因数分解の難しさを利用する</li>
+        <li>TLSハンドシェイクで安全な通信路を確立</li>
+        <li>HTTPSはTLSでHTTPを包んだもの</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')updateCaesar();
+  window.scrollTo(0,0);
+}
+const TEXT='HELLO';
+function updateCaesar(){
+  const shift=+document.getElementById('shift-sl').value;
+  document.getElementById('shift-val').textContent='+'+shift;
+  document.getElementById('shift-label').textContent=shift+'文字ずらす';
+  const plain=document.getElementById('plain-chars');
+  const enc=document.getElementById('enc-chars');
+  plain.innerHTML=''; enc.innerHTML='';
+  [...TEXT].forEach(c=>{
+    const pc=document.createElement('div'); pc.className='cipher-char plain'; pc.textContent=c; plain.appendChild(pc);
+    const code=(c.charCodeAt(0)-65+shift)%26+65;
+    const ec=document.createElement('div'); ec.className='cipher-char encrypted'; ec.textContent=String.fromCharCode(code); enc.appendChild(ec);
+  });
+}
+let tlsDone=false;
+function startTLS(){
+  if(tlsDone)return; tlsDone=true;
+  ['t1','t2','t3','t4','t5'].forEach((id,i)=>{
+    setTimeout(()=>{
+      document.getElementById(id).classList.add('show');
+      if(i===4){
+        document.getElementById('padlock').textContent='🔒';
+        document.getElementById('padlock').classList.add('locked');
+        document.getElementById('padlock-status').textContent='✅ 暗号化された安全な接続が確立されました！';
+        document.getElementById('padlock-status').style.color='#16a34a';
+      }
+    },(i+1)*700);
+  });
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！26通りしかないので全部試せば解ける（総当たり攻撃）。現代の暗号は天文学的パターン数！':'❌ 不正解。正解は「パターンが26通りしかない」こと。全部試せば簡単に解けてしまいます。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='a'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[0].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！公開鍵は暗号化のみ。復号できるのは対応する秘密鍵だけです！':'❌ 不正解。公開鍵でできるのは「暗号化のみ」。復号には秘密鍵が必要です。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

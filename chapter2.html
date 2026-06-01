@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第2章：キーボードの秘密 — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#e11d48;--accent2:#f472b6;}
+.key{min-width:48px;height:48px;background:white;border:2px solid #fecdd3;border-bottom:4px solid #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;cursor:pointer;transition:all 0.1s;user-select:none;color:#e11d48;box-shadow:0 2px 6px rgba(225,29,72,0.15)}
+.key:active,.key.pressed{background:linear-gradient(135deg,#e11d48,#f472b6);border-color:transparent;color:white;transform:translateY(3px);box-shadow:none}
+.key.wide{min-width:80px}
+.switch-visual{width:80px;height:110px;background:#f9f7ff;border:2px solid #e2ddf0;border-radius:12px;position:relative;overflow:hidden;cursor:pointer;transition:all 0.2s}
+.switch-visual:hover{border-color:#e11d48}
+.sw-cap{position:absolute;top:8px;left:8px;right:8px;height:28px;background:linear-gradient(135deg,#fce7f3,#fecdd3);border-radius:6px;border:2px solid #f9a8d4;transition:top 0.1s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#be185d}
+.sw-spring{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:4px;height:24px;background:repeating-linear-gradient(0deg,#fca5a5 0,#fca5a5 3px,transparent 3px,transparent 6px);transition:height 0.1s}
+.sw-contact-hi{position:absolute;bottom:27px;left:14px;right:14px;height:3px;background:#e11d48;border-radius:2px;transition:bottom 0.1s}
+.sw-contact-lo{position:absolute;bottom:20px;left:14px;right:14px;height:3px;background:#fca5a5;border-radius:2px}
+.sw-base{position:absolute;bottom:0;left:0;right:0;height:22px;background:#fce7f3;border-top:2px solid #fecdd3;display:flex;align-items:center;justify-content:center;font-size:10px;color:#be185d;font-weight:700}
+.sw-glow{position:absolute;bottom:0;left:0;right:0;height:3px;background:#e11d48;opacity:0;transition:opacity 0.1s;box-shadow:0 0 8px #e11d48}
+.switch-visual.pressed .sw-cap{top:22px}
+.switch-visual.pressed .sw-spring{height:8px}
+.switch-visual.pressed .sw-contact-hi{bottom:20px}
+.switch-visual.pressed .sw-contact-lo{background:#e11d48}
+.switch-visual.pressed .sw-glow{opacity:1}
+.matrix-grid{display:grid;grid-template-columns:60px repeat(4,70px);gap:5px}
+.matrix-cell{height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;font-weight:700}
+.matrix-header{background:#fce7f3;color:#e11d48}
+.matrix-row-label{background:#fce7f3;color:#e11d48}
+.matrix-key-cell{background:white;border:2px solid #fecdd3;cursor:pointer;transition:all 0.2s;color:#2d2040}
+.matrix-key-cell:hover{border-color:#e11d48}
+.matrix-key-cell.scanning{background:#fff0f6;border-color:#f9a8d4}
+.matrix-key-cell.hit{background:linear-gradient(135deg,#e11d48,#f472b6);border-color:transparent;color:white}
+.kc-box{background:white;border:2px solid #fecdd3;border-radius:10px;padding:12px 16px;text-align:center;min-width:100px;transition:all 0.3s}
+.kc-box.highlight{border-color:#e11d48;background:#fff0f6}
+.kc-label{font-size:10px;color:#9b8db4;margin-bottom:4px;letter-spacing:1px;font-weight:700}
+.kc-val{font-size:18px;font-weight:900;color:#e11d48}
+.event-log{background:#1e1b2e;border-radius:10px;padding:12px;font-family:monospace;font-size:12px;min-height:80px;max-height:140px;overflow-y:auto;line-height:1.8}
+.ev-kd{color:#f472b6}
+.ev-ku{color:#60a5fa}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第2章 · キーボードの秘密</div>
+  <div class="scene-title">⌨️ キーを押すと、何が起きるの？</div>
+  <div class="scene-desc">毎日何百回と押しているキーボード。でも「A」を押したら画面に「A」が出るまでに、何が起きているか知ってる？<strong>4つのステップ</strong>で謎を解き明かそう！🕵️</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px;text-align:center">👇 キーを押してみよう！</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center" id="demo-kb">
+      <div class="key wide" onmousedown="pressKey(this,'Q')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">Q</div>
+      <div class="key" onmousedown="pressKey(this,'W')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">W</div>
+      <div class="key" onmousedown="pressKey(this,'E')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">E</div>
+      <div class="key" onmousedown="pressKey(this,'R')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">R</div>
+      <div class="key" onmousedown="pressKey(this,'A')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">A</div>
+      <div class="key" onmousedown="pressKey(this,'S')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">S</div>
+      <div class="key" onmousedown="pressKey(this,'D')" onmouseup="releaseKey(this)" onmouseleave="releaseKey(this)">D</div>
+    </div>
+    <div id="kb-hint" style="text-align:center;min-height:24px;margin-top:10px;font-size:15px;font-weight:800;color:#e11d48"></div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：物理スイッチ ⚡</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第2章 · Step 1/4</div>
+  <div class="scene-title">🔌 Step 1：キーの中には「スイッチ」がある</div>
+  <div class="scene-desc">キーキャップの下には<strong>電気スイッチ</strong>が入っている！押すと2つの金属接点が触れて電気回路が繋がる。これが「押された」の正体。クリックして確かめよう！</div>
+  <div class="stage" style="display:flex;flex-direction:column;align-items:center;gap:16px">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div class="switch-visual" id="sw1" onclick="toggleSwitch()">
+        <div class="sw-cap" id="sw-cap">A</div>
+        <div class="sw-spring" id="sw-spring"></div>
+        <div class="sw-contact-hi" id="sw-hi"></div>
+        <div class="sw-contact-lo"></div>
+        <div class="sw-glow"></div>
+        <div class="sw-base" id="sw-base">⚡ OFF</div>
+      </div>
+      <div id="sw-status" style="font-size:13px;font-weight:700;color:#9b8db4">👆 クリックでキーを押す！</div>
+    </div>
+    <div class="info-box">💡 メカニカルキーボードはこのバネ式スイッチ。メンブレン式はゴムドームで同じことをする。<br>接点が繋がった瞬間、<strong>約5Vの信号</strong>がキーボードコントローラに流れる！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：マトリクス走査 🔢</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第2章 · Step 2/4</div>
+  <div class="scene-title">🔢 Step 2：マトリクス走査で配線を減らす！</div>
+  <div class="scene-desc">104キー分の配線が必要なら<strong>104本</strong>！でも<strong>マトリクス（行×列）</strong>配線なら、行10本+列11本 = <strong>わずか21本</strong>で110キーを管理できる。賢い！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">👆 キーをクリック → 行・列の走査を見よう！</div>
+    <div style="overflow-x:auto">
+      <div class="matrix-grid" id="matrix-grid"></div>
+    </div>
+    <div id="matrix-info" class="info-box" style="margin-top:12px;min-height:44px;font-size:13px">キーをクリックすると走査の様子が表示されます！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：キーコード 🔡</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第2章 · Step 3/4</div>
+  <div class="scene-title">🔡 Step 3：スキャンコード → キーコードへ変換</div>
+  <div class="scene-desc">コントローラは行・列の番号（<strong>スキャンコード</strong>）を送る。ドライバがそれを<strong>キーコード（ASCII等）</strong>に変換して、文字として認識できるようにする！</div>
+  <div class="stage">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:14px">
+      <div class="key" onclick="showKC('Q',0x10,'81','q')">Q</div>
+      <div class="key" onclick="showKC('W',0x11,'87','w')">W</div>
+      <div class="key" onclick="showKC('E',0x12,'69','e')">E</div>
+      <div class="key" onclick="showKC('A',0x1E,'65','a')">A</div>
+      <div class="key" onclick="showKC('S',0x1F,'83','s')">S</div>
+      <div class="key" onclick="showKC('D',0x20,'68','d')">D</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center">
+      <div class="kc-box" id="kc1"><div class="kc-label">スキャンコード</div><div class="kc-val" id="kc-sc">—</div></div>
+      <div style="font-size:22px;color:#f472b6;font-weight:900">→</div>
+      <div class="kc-box" id="kc2"><div class="kc-label">ASCII コード</div><div class="kc-val" id="kc-ascii">—</div></div>
+      <div style="font-size:22px;color:#f472b6;font-weight:900">→</div>
+      <div class="kc-box" id="kc3"><div class="kc-label">文字</div><div class="kc-val" id="kc-char" style="font-size:28px">—</div></div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s4')">Step 4：OSイベント 📡</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第2章 · Step 4/4</div>
+  <div class="scene-title">📡 Step 4：アプリはどうやってキー入力を知る？</div>
+  <div class="scene-desc">キーコードはOSの<strong>イベントキュー</strong>に入る。アプリはそのキューを監視していて、イベントが来たら反応する。実際に試してみよう！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">👇 テキストボックスをクリックしてキーを入力！</div>
+    <input id="ev-input" type="text" placeholder="ここに入力してね ⌨️"
+      style="width:100%;padding:12px 16px;background:white;border:2px solid #fecdd3;border-radius:12px;color:#2d2040;font-size:15px;outline:none;margin-bottom:10px;font-family:inherit;font-weight:600">
+    <div class="event-log" id="ev-log"><span style="color:#555">// キーイベントがここに表示されます</span></div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第2章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#fce7f3,#fecdd3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. マトリクス配線の利点は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ(this,'a','b','fb1','q2-wrap')">キーが光る</div>
+      <div class="quiz-opt" onclick="checkQ(this,'b','b','fb1','q2-wrap')">配線数を大幅に減らせる</div>
+      <div class="quiz-opt" onclick="checkQ(this,'c','b','fb1','q2-wrap')">打鍵感が向上する</div>
+      <div class="quiz-opt" onclick="checkQ(this,'d','b','fb1','q2-wrap')">速度が速くなる</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#fce7f3,#fecdd3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. スキャンコードをキーコードに変換するのは？ 🔡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQLast(this,false)">CPU</div>
+      <div class="quiz-opt" onclick="checkQLast(this,true)">キーボードドライバ</div>
+      <div class="quiz-opt" onclick="checkQLast(this,false)">ディスプレイ</div>
+      <div class="quiz-opt" onclick="checkQLast(this,false)">メモリ</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第2章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第2章クリア！</h2>
+    <p>キーボードの物理スイッチから<br>OSイベントまでの旅を追った！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>キーの下にはバネ式スイッチがある</li>
+        <li>マトリクス配線で配線数を大幅削減</li>
+        <li>コントローラがスキャンコードを生成</li>
+        <li>ドライバがキーコード（ASCII等）に変換</li>
+        <li>OSのイベントキューでアプリに届く</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s2')initMatrix();
+  if(id==='s4')initEvLog();
+  window.scrollTo(0,0);
+}
+function pressKey(el,key){el.classList.add('pressed');document.getElementById('kb-hint').textContent='「'+key+'」を押した！スイッチが接続✅';}
+function releaseKey(el){el.classList.remove('pressed');document.getElementById('kb-hint').textContent='';}
+let swPressed=false;
+function toggleSwitch(){
+  const el=document.getElementById('sw1');
+  swPressed=!swPressed;
+  if(swPressed){el.classList.add('pressed');document.getElementById('sw-base').textContent='⚡ ON';document.getElementById('sw-status').textContent='✅ 回路が繋がった！5V信号送出！';document.getElementById('sw-status').style.color='#e11d48';}
+  else{el.classList.remove('pressed');document.getElementById('sw-base').textContent='⚡ OFF';document.getElementById('sw-status').textContent='👆 クリックでキーを押す！';document.getElementById('sw-status').style.color='#9b8db4';}
+}
+const matKeys=[['Q','W','E','R'],['A','S','D','F'],['Z','X','C','V']];
+function initMatrix(){
+  const grid=document.getElementById('matrix-grid');
+  if(grid.children.length>0)return;
+  const hdr=document.createElement('div');hdr.className='matrix-cell';grid.appendChild(hdr);
+  ['列0','列1','列2','列3'].forEach(c=>{const el=document.createElement('div');el.className='matrix-cell matrix-header';el.style.color='#0369a1';el.textContent=c;grid.appendChild(el);});
+  matKeys.forEach((row,r)=>{
+    const lbl=document.createElement('div');lbl.className='matrix-cell matrix-row-label';lbl.textContent='行'+r;grid.appendChild(lbl);
+    row.forEach((k,c)=>{
+      const el=document.createElement('div');el.className='matrix-cell matrix-key-cell';el.textContent=k;
+      el.onclick=()=>scanMatrix(r,c,k);
+      grid.appendChild(el);
+    });
+  });
+}
+let scanT=null;
+function scanMatrix(row,col,key){
+  if(scanT)clearTimeout(scanT);
+  document.querySelectorAll('.matrix-key-cell').forEach(c=>c.classList.remove('scanning','hit'));
+  const rowCells=[...document.querySelectorAll('.matrix-key-cell')].filter((_,i)=>Math.floor(i/4)===row);
+  rowCells.forEach(c=>c.classList.add('scanning'));
+  document.getElementById('matrix-info').innerHTML=`<span style="color:#f472b6">① 行${row}に電流を流す…走査中</span>`;
+  setTimeout(()=>{
+    rowCells.forEach(c=>c.classList.remove('scanning'));
+    const target=document.querySelectorAll('.matrix-key-cell')[row*4+col];
+    target.classList.add('hit');
+    document.getElementById('matrix-info').innerHTML=`<span style="color:#e11d48">② 列${col}に応答検出！</span> → <strong>「${key}」（行${row}×列${col}）が押された！</strong><br><span style="color:#9b8db4">スキャンコード: 0x${((row*4+col)+0x10).toString(16).toUpperCase()}</span>`;
+    scanT=setTimeout(()=>target.classList.remove('hit'),1500);
+  },450);
+}
+function showKC(key,scan,code,ch){
+  ['kc1','kc2','kc3'].forEach(id=>document.getElementById(id).classList.remove('highlight'));
+  function setVal(id,elId,val,delay){
+    setTimeout(()=>{
+      document.getElementById(elId).textContent=val;
+      document.getElementById(id).classList.add('highlight');
+      setTimeout(()=>document.getElementById(id).classList.remove('highlight'),500);
+    },delay);
+  }
+  document.getElementById('kc-sc').textContent='—';document.getElementById('kc-ascii').textContent='—';document.getElementById('kc-char').textContent='—';
+  setVal('kc1','kc-sc','0x'+scan.toString(16).toUpperCase(),0);
+  setVal('kc2','kc-ascii',code,400);
+  setVal('kc3','kc-char','"'+ch+'"',800);
+}
+function initEvLog(){
+  const input=document.getElementById('ev-input');
+  const log=document.getElementById('ev-log');
+  if(input._init)return; input._init=true;
+  input.addEventListener('keydown',e=>{
+    e.preventDefault();
+    const div=document.createElement('div');div.className='ev-kd';
+    div.textContent=`keydown  key="${e.key}"  code="${e.code}"  keyCode=${e.keyCode}`;
+    log.appendChild(div);log.scrollTop=log.scrollHeight;
+  });
+  input.addEventListener('keyup',e=>{
+    const div=document.createElement('div');div.className='ev-ku';
+    div.textContent=`keyup    key="${e.key}"  code="${e.code}"`;
+    log.appendChild(div);log.scrollTop=log.scrollHeight;
+  });
+}
+let q1done=false,q2done=false;
+function checkQ(el,chosen,correct,fbId,nextId){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=chosen===correct; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById(fbId).textContent=ok?'✅ 正解！行×列の格子状配線で、100個のキーも少ない配線で管理できます！':'❌ 不正解。正解は「配線数を大幅に減らせる」！マトリクスの最大の利点です。';
+  document.getElementById(fbId).className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById(nextId).style.display='block',700);
+}
+function checkQLast(el,isCorrect){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  el.classList.add(isCorrect?'correct':'wrong');
+  if(!isCorrect)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb2').textContent=isCorrect?'✅ 正解！OSのキーボードドライバがスキャンコードをキーコードに変換します！':'❌ 不正解。正解は「キーボードドライバ」！ハードウェアとOSの橋渡し役です。';
+  document.getElementById('fb2').className='feedback show '+(isCorrect?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

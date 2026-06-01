@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第7章：音の仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#7c3aed;--accent2:#c084fc;}
+canvas{border-radius:10px;display:block}
+.note-btn{padding:10px 14px;background:white;border:2px solid #ddd6fe;border-radius:10px;color:#7c3aed;font-size:15px;font-weight:800;cursor:pointer;transition:all 0.15s;min-width:46px;text-align:center;font-family:inherit;box-shadow:0 2px 6px rgba(124,58,237,0.1)}
+.note-btn:hover{background:#f5f3ff;border-color:#7c3aed}
+.note-btn.playing{background:linear-gradient(135deg,#7c3aed,#c084fc);color:white;border-color:transparent;transform:scale(0.95)}
+.speaker-cone{width:80px;height:80px;border-radius:50%;border:4px solid #7c3aed;display:flex;align-items:center;justify-content:center;font-size:32px;transition:all 0.1s;box-shadow:0 0 0 0 rgba(124,58,237,0.3)}
+.speaker-cone.vibrate{animation:spkVib 0.08s ease-in-out infinite alternate}
+@keyframes spkVib{from{transform:scaleX(0.96);box-shadow:0 0 0 4px rgba(124,58,237,0.2)}to{transform:scaleX(1.04);box-shadow:0 0 16px 8px rgba(124,58,237,0.1)}}
+.bit-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bit-bar-track{flex:1;background:#f3f4f6;border-radius:6px;height:18px;overflow:hidden}
+.bit-bar-fill{height:100%;border-radius:6px;background:linear-gradient(135deg,#7c3aed,#c084fc);transition:width 0.4s}
+.bit-label{font-size:12px;font-weight:700;color:#6b5f80;min-width:60px}
+.bit-val{font-family:monospace;font-size:12px;font-weight:800;color:#7c3aed;min-width:70px}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第7章 · 音の仕組み</div>
+  <div class="scene-title">🔊 コンピュータはどうやって音を出すの？</div>
+  <div class="scene-desc">スピーカーから音が出るとき、コンピュータの中では<strong>0と1のデータ</strong>が空気の振動に変わっている。アナログな「音波」をどうデジタルで表現するのか探ろう！🎵</div>
+  <div class="stage" style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <canvas id="intro-wave" width="480" height="120" style="width:100%;max-width:480px;background:#1e1b2e"></canvas>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" id="note-pad"></div>
+    <div style="font-size:13px;color:#9b8db4;font-weight:700">👆 ボタンを押して音を鳴らそう（スピーカーONで！）</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：音波とサイン波 🌊</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第7章 · Step 1/4</div>
+  <div class="scene-title">🌊 Step 1：音 = 空気の「疎密波」</div>
+  <div class="scene-desc">音は空気分子が交互に押し縮まり（密）・広がる（疎）ことで伝わる。これをグラフにすると<strong>サイン波</strong>になる。<strong>周波数</strong>（Hz）が高いほど音が高く、<strong>振幅</strong>が大きいほど音が大きい！</div>
+  <div class="stage">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;font-weight:700;color:#7c3aed;min-width:60px">周波数:</label>
+            <input type="range" min="1" max="8" value="2" id="freq-sl" oninput="updateWave()" style="accent-color:#7c3aed;width:130px">
+            <span id="freq-v" style="font-family:monospace;font-size:13px;font-weight:800;color:#7c3aed;min-width:80px"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;font-weight:700;color:#7c3aed;min-width:60px">振幅:</label>
+            <input type="range" min="10" max="50" value="30" id="amp-sl" oninput="updateWave()" style="accent-color:#7c3aed;width:130px">
+            <span id="amp-v" style="font-family:monospace;font-size:13px;font-weight:800;color:#7c3aed;min-width:60px"></span>
+          </div>
+        </div>
+      </div>
+      <canvas id="wave-canvas" width="480" height="120" style="width:100%;max-width:480px;background:#1e1b2e;border:2px solid #ede9fe"></canvas>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 人間が聞ける音の範囲は<strong>20Hz〜20,000Hz</strong>。<br>ピアノの中央のド（C4）は261.63Hz。電話の「ツー」は400Hz！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：サンプリング 📊</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第7章 · Step 2/4</div>
+  <div class="scene-title">📊 Step 2：アナログ波形を数字の列に変換する</div>
+  <div class="scene-desc">連続したアナログ波形を、一定間隔で「値を読み取る」ことで数字に変換する — これが<strong>サンプリング</strong>！1秒間に読み取る回数が<strong>サンプリングレート</strong>（Hz）。高いほど元の音に近い！</div>
+  <div class="stage">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <label style="font-size:12px;font-weight:700;color:#7c3aed">サンプリングレート:</label>
+      <input type="range" min="4" max="32" value="8" step="4" id="sr-sl" oninput="updateSR()" style="accent-color:#7c3aed;width:140px">
+      <span id="sr-v" style="font-family:monospace;font-size:14px;font-weight:900;color:#7c3aed;min-width:80px"></span>
+    </div>
+    <canvas id="sr-canvas" width="480" height="140" style="width:100%;max-width:480px;background:#1e1b2e;border:2px solid #ede9fe"></canvas>
+    <div id="sr-nums" style="margin-top:8px;font-family:monospace;font-size:12px;font-weight:700;color:#7c3aed;word-break:break-all;line-height:1.8"></div>
+    <div class="info-box" style="margin-top:10px">💡 CDは<strong>44,100Hz</strong>（サンプル/秒）。ナイキスト定理：最高周波数の2倍以上でサンプリングすれば元の音に忠実！<br>ハイレゾ音源は96,000〜192,000Hz！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：ビット深度 🎚️</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第7章 · Step 3/4</div>
+  <div class="scene-title">🎚️ Step 3：ビット深度 — 音の「細かさ」</div>
+  <div class="scene-desc">サンプリングで読み取った値を何ビットで表現するか — これが<strong>ビット深度（量子化ビット数）</strong>。ビットが多いほど音の細かいニュアンスまで表現できる！</div>
+  <div class="stage">
+    <div style="margin-bottom:12px" id="bit-levels"></div>
+    <canvas id="bit-canvas" width="480" height="130" style="width:100%;max-width:480px;background:#1e1b2e;border:2px solid #ede9fe;margin-bottom:12px"></canvas>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="setBits(4)">4bit（8bitゲーム）</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="setBits(8)">8bit（電話）</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="setBits(16)">16bit（CD）✅</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="setBits(24)">24bit（ハイレゾ）</button>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 CDは<strong>16bit</strong> → 65,536段階で音量を表現。<br>8bitゲーム音楽の独特な「ノイズ感」は低ビット深度が原因！😄</div>
+  </div>
+  <button class="btn-next" onclick="go('s4')">Step 4：DACとスピーカー 🔊</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第7章 · Step 4/4</div>
+  <div class="scene-title">🔊 Step 4：数字がどうやって空気の振動になる？</div>
+  <div class="scene-desc">コンピュータの数字データは<strong>DAC（デジタル→アナログ変換器）</strong>でアナログ電気信号に変換される。アンプで増幅された電気信号がスピーカーのコイルと磁石を動かし、コーンが空気を振動させる！</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap">
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">💾 デジタルデータ</div>
+        <div style="font-family:monospace;font-size:16px;font-weight:900;color:#7c3aed;background:#f5f3ff;border:2px solid #ddd6fe;border-radius:10px;padding:10px 14px" id="dac-bits">01101010</div>
+      </div>
+      <div style="font-size:24px;color:#7c3aed;font-weight:900">→</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">🔄 DAC</div>
+        <div style="background:linear-gradient(135deg,#7c3aed,#c084fc);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:800;color:white">D→A変換</div>
+      </div>
+      <div style="font-size:24px;color:#7c3aed;font-weight:900">→</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">〰️ アナログ信号</div>
+        <canvas id="dac-wave" width="80" height="60" style="background:#1e1b2e;border-radius:8px;border:2px solid #ede9fe"></canvas>
+      </div>
+      <div style="font-size:24px;color:#7c3aed;font-weight:900">→</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">🔊 スピーカー</div>
+        <div class="speaker-cone" id="speaker-cone">🔊</div>
+      </div>
+    </div>
+    <button class="btn-action" style="margin-top:16px;display:block;margin-left:auto;margin-right:auto" onclick="startDAC()">▶ 音声出力をシミュレート！</button>
+    <div class="info-box" style="margin-top:12px">💡 スマホのイヤホン端子 = DAC内蔵。Bluetooth = ワイヤレスでデジタル転送してデバイス側でDAC変換。<br>USB-Cだけのスマホも内部にDACが入っている！</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第7章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. アナログ波形を一定間隔で数値化することを何という？ 🎵</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">量子化</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">サンプリング</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">エンコード</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">フィルタリング</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. CDのサンプリングレートは？ 💿</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">8,000Hz</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">22,050Hz</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">44,100Hz</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">192,000Hz</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第7章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第7章クリア！</h2>
+    <p>音波からスピーカーまで、<br>デジタルオーディオの全工程を学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>音 = 空気の圧力変化（疎密波）= サイン波</li>
+        <li>サンプリングでアナログをデジタル化</li>
+        <li>CDは44,100Hz・16bitで音を記録</li>
+        <li>ビット深度が高いほど細かい音量表現</li>
+        <li>DACが数字→電気→コーン振動→音に変換</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','sq','sdone'];
+let cur='s0';
+let aCtx=null;
+function getAC(){if(!aCtx)aCtx=new(window.AudioContext||window.webkitAudioContext)();return aCtx;}
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')updateWave();
+  if(id==='s2')updateSR();
+  if(id==='s3')initBits();
+  if(id==='s4')initDAC();
+  window.scrollTo(0,0);
+}
+// S0: note pad
+const NOTES={C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392,A4:440,B4:493.88,C5:523.25};
+(function(){
+  const pad=document.getElementById('note-pad');
+  Object.entries(NOTES).forEach(([n,f])=>{
+    const btn=document.createElement('button');btn.className='note-btn';btn.textContent=n;
+    btn.onmousedown=()=>{playNote(f,btn);};pad.appendChild(btn);
+  });
+  animIntroWave();
+})();
+function playNote(freq,btn){
+  const ctx=getAC();
+  const osc=ctx.createOscillator();const gain=ctx.createGain();
+  osc.connect(gain);gain.connect(ctx.destination);
+  osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0.25,ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
+  osc.start();osc.stop(ctx.currentTime+0.8);
+  if(btn){btn.classList.add('playing');setTimeout(()=>btn.classList.remove('playing'),300);}
+}
+function animIntroWave(){
+  const canvas=document.getElementById('intro-wave');if(!canvas)return;
+  const ctx=canvas.getContext('2d');let phase=0;
+  function draw(){
+    ctx.fillStyle='#1e1b2e';ctx.fillRect(0,0,480,120);
+    ctx.beginPath();ctx.strokeStyle='#a78bfa';ctx.lineWidth=2;
+    for(let x=0;x<480;x++){const y=60+28*Math.sin((x/480)*4*Math.PI+phase)+12*Math.sin((x/480)*9*Math.PI+phase*1.5);x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();phase+=0.04;requestAnimationFrame(draw);
+  }
+  draw();
+}
+// S1: wave
+function updateWave(){
+  const f=+document.getElementById('freq-sl').value;
+  const amp=+document.getElementById('amp-sl').value;
+  const freqs=[110,220,330,440,550,660,770,880];
+  document.getElementById('freq-v').textContent=f+'× ('+freqs[f-1]+'Hz)';
+  document.getElementById('amp-v').textContent=amp+'%';
+  drawWave(f,amp);
+}
+function drawWave(f,amp){
+  const canvas=document.getElementById('wave-canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#1e1b2e';ctx.fillRect(0,0,480,120);
+  ctx.strokeStyle='rgba(167,139,250,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,60);ctx.lineTo(480,60);ctx.stroke();
+  ctx.beginPath();ctx.strokeStyle='#a78bfa';ctx.lineWidth=2;
+  for(let x=0;x<480;x++){const y=60+amp*Math.sin((x/480)*f*2*Math.PI);x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+}
+// S2: sampling
+function updateSR(){
+  const sr=+document.getElementById('sr-sl').value;
+  document.getElementById('sr-v').textContent=sr+' samples/cycle';
+  drawSR(sr);
+}
+function drawSR(sr){
+  const canvas=document.getElementById('sr-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=480,H=140,cy=70;
+  ctx.fillStyle='#1e1b2e';ctx.fillRect(0,0,W,H);
+  ctx.beginPath();ctx.strokeStyle='rgba(167,139,250,0.2)';ctx.lineWidth=1.5;
+  for(let x=0;x<W;x++){const y=cy+45*Math.sin((x/W)*2*2*Math.PI);x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  const samples=[];
+  for(let i=0;i<sr;i++){const t=i/sr;const x=t*W;const y=cy+45*Math.sin(t*2*2*Math.PI);samples.push({x,y,v:Math.round((cy-y)/45*100)});}
+  samples.forEach(s=>{ctx.fillStyle='#c084fc';ctx.beginPath();ctx.arc(s.x,s.y,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(192,132,252,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(s.x,cy);ctx.lineTo(s.x,s.y);ctx.stroke();});
+  ctx.beginPath();ctx.strokeStyle='#e879f9';ctx.lineWidth=1.5;
+  samples.forEach((s,i)=>{const next=samples[i+1];if(i===0)ctx.moveTo(s.x,s.y);else ctx.lineTo(s.x,s.y);if(next)ctx.lineTo(next.x,s.y);});
+  ctx.stroke();
+  document.getElementById('sr-nums').textContent='サンプル値: ['+samples.map(s=>s.v).join(', ')+']';
+}
+// S3: bit depth
+function initBits(){
+  const el=document.getElementById('bit-levels');el.innerHTML='';
+  [[4,16,'8bitゲーム'],[8,256,'電話品質'],[16,65536,'CD品質'],[24,16777216,'ハイレゾ']].forEach(([bits,lvls,label])=>{
+    const w=Math.log2(lvls)/24*100;
+    const row=document.createElement('div');row.className='bit-bar-row';
+    row.innerHTML=`<span class="bit-label">${bits}bit</span><div class="bit-bar-track"><div class="bit-bar-fill" style="width:${w}%"></div></div><span class="bit-val">${lvls.toLocaleString()}段階</span><span style="font-size:11px;color:#9b8db4">${label}</span>`;
+    el.appendChild(row);
+  });
+  setBits(16);
+}
+function setBits(bits){
+  const canvas=document.getElementById('bit-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=480,H=130,cy=65,lvls=Math.pow(2,bits);
+  ctx.fillStyle='#1e1b2e';ctx.fillRect(0,0,W,H);
+  ctx.beginPath();ctx.strokeStyle='#a78bfa';ctx.lineWidth=1.5;
+  for(let x=0;x<W;x++){const a=45*Math.sin((x/W)*2*2*Math.PI);const q=Math.round(a/(90/lvls))*(90/lvls);const y=cy+q;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  ctx.fillStyle='#888';ctx.font='bold 12px monospace';ctx.fillText(`${bits}bit = ${lvls.toLocaleString()}段階`,8,16);
+}
+// S4: DAC
+function initDAC(){
+  const canvas=document.getElementById('dac-wave');
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#1e1b2e';ctx.fillRect(0,0,80,60);
+  ctx.beginPath();ctx.strokeStyle='#a78bfa';ctx.lineWidth=1.5;
+  for(let x=0;x<80;x++){const y=30+18*Math.sin((x/80)*4*Math.PI);x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+}
+let dacRunning=false;
+function startDAC(){
+  if(dacRunning)return;dacRunning=true;
+  const bits=['01101010','10010101','11001100','01010101','10101010','11110000'];
+  let i=0;
+  const cone=document.getElementById('speaker-cone');
+  cone.classList.add('vibrate');
+  function step(){
+    document.getElementById('dac-bits').textContent=bits[i%bits.length];i++;
+    if(i<bits.length*2)setTimeout(step,280);
+    else{cone.classList.remove('vibrate');dacRunning=false;}
+  }
+  step();
+  try{const ctx=getAC();const osc=ctx.createOscillator();const gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.frequency.value=440;gain.gain.setValueAtTime(0.18,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+1.5);osc.start();osc.stop(ctx.currentTime+1.5);}catch(e){}
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！サンプリング（標本化）で連続波形を離散データに変換します！':'❌ 不正解。正解は「サンプリング」！量子化は値を段階に丸める別の処理です。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！CDは44,100Hz（44.1kHz）・16bitです！':'❌ 不正解。正解は「44,100Hz」！ナイキスト定理で人間の可聴域をカバーするのに十分な値です。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

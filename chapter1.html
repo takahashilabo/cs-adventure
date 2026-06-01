@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第1章：プログラムの旅 — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root { --accent:#7c3aed; --accent2:#a78bfa; }
+.code-block { font-family:'Courier New',monospace; font-size:13px; background:#1e1b2e; border-radius:12px; padding:16px; line-height:1.8; color:#e2e0f0; }
+.code-line { display:flex; align-items:center; }
+.code-line .ln { color:#4a4060; width:28px; user-select:none; font-size:11px; }
+.memory-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:6px; }
+.mem-cell { background:#f0ecff; border:2px solid #ddd6fe; border-radius:8px; padding:6px 4px; text-align:center; font-family:monospace; font-size:10px; transition:all 0.25s; cursor:pointer; color:#5b21b6; font-weight:700; }
+.mem-cell:hover { transform:scale(1.05); }
+.mem-cell.active { background:linear-gradient(135deg,#7c3aed,#a78bfa); border-color:#7c3aed; color:white; }
+.mem-cell.data   { background:linear-gradient(135deg,#0891b2,#22d3ee); border-color:#0891b2; color:white; }
+.cpu-container { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+.cpu-box { border:2px solid #ddd6fe; border-radius:12px; padding:14px; min-width:180px; background:#f9f7ff; }
+.cpu-box h4 { font-size:11px; letter-spacing:1px; color:#7c3aed; margin-bottom:10px; text-transform:uppercase; font-weight:800; }
+.register { display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:white; border-radius:8px; margin-bottom:5px; font-family:monospace; font-size:13px; border:1px solid #ede9fe; }
+.register .reg-name { color:#7c3aed; font-weight:800; }
+.register .reg-val  { color:#0891b2; font-weight:700; transition:all 0.3s; }
+.register .reg-val.changed { color:#f97316; text-shadow:0 0 8px rgba(249,115,22,0.4); }
+.pipeline { display:flex; gap:0; margin:16px 0; border-radius:12px; overflow:hidden; }
+.pipe-stage { flex:1; text-align:center; padding:12px 8px; background:#f0ecff; border:1.5px solid #ddd6fe; font-size:12px; font-weight:700; transition:all 0.4s; color:#7c3aed; }
+.pipe-stage.running { background:linear-gradient(135deg,#7c3aed,#a78bfa); color:white; border-color:transparent; }
+.pipe-stage.done    { background:linear-gradient(135deg,#16a34a,#4ade80); color:white; border-color:transparent; }
+.pipe-stage .pipe-icon  { font-size:20px; margin-bottom:4px; }
+.pipe-stage .pipe-label { font-weight:800; }
+.pipe-stage .pipe-sub   { font-size:10px; opacity:0.75; margin-top:2px; }
+.terminal { background:#1e1b2e; border-radius:12px; padding:16px; font-family:monospace; font-size:15px; min-height:80px; }
+.terminal .prompt { color:#60a5fa; }
+.terminal .output { color:#86efac; }
+.cursor { display:inline-block; width:9px; height:17px; background:#60a5fa; vertical-align:middle; animation:blink 1s step-end infinite; border-radius:2px; }
+@keyframes blink { 50%{opacity:0} }
+.compile-row { opacity:0; transition:opacity 0.5s; margin-bottom:10px; display:flex; align-items:center; gap:12px; }
+.compile-row.show { opacity:1; }
+.compile-box { background:#f9f7ff; border:2px solid #ddd6fe; border-radius:10px; padding:10px 14px; font-family:monospace; font-size:12px; flex:1; color:#4c1d95; }
+.compile-box.source  { border-color:#7c3aed; background:#f0ecff; }
+.compile-box.machine { border-color:#f97316; background:#fff7ed; color:#9a3412; }
+.compile-arrow { color:#a78bfa; font-size:18px; font-weight:900; }
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第1章 · プログラムの旅</div>
+  <div class="scene-title">✍️ コードはどうやって動くの？</div>
+  <div class="scene-desc">人間が書く「プログラム」はただのテキスト。でもコンピュータは<strong>0と1しか理解できない</strong>。このギャップはどうやって埋まるのだろう？今から旅に出よう 🚀</div>
+  <div class="stage">
+    <div class="code-block">
+      <div class="code-line"><span class="ln">1</span><span class="kw">def</span> <span class="fn">add</span>(a, b):</div>
+      <div class="code-line"><span class="ln">2</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> a + b</div>
+      <div class="code-line"><span class="ln">3</span>&nbsp;</div>
+      <div class="code-line"><span class="ln">4</span>result = <span class="fn">add</span>(<span class="num">3</span>, <span class="num">5</span>)</div>
+      <div class="code-line"><span class="ln">5</span><span class="fn">print</span>(<span class="str">"答え:"</span>, result)</div>
+    </div>
+    <div style="text-align:center;margin:16px 0 8px;font-size:28px">⬇️</div>
+    <div style="text-align:center;background:#f0ecff;border-radius:10px;padding:10px;font-family:monospace;font-size:13px;color:#7c3aed;letter-spacing:2px">
+      01001000 01100101 01101100 01101100 01101111...
+    </div>
+    <div style="text-align:center;margin-top:8px;font-size:13px;color:#9b8db4">🤔 どうやって変換するの？</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">旅を始める ✨</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第1章 · Step 1/5</div>
+  <div class="scene-title">📄 Step 1：ソースコード</div>
+  <div class="scene-desc">プログラムはまず「ソースコード」として書かれる。人間が読めるテキストファイル。コンピュータにはまだ意味がない。</div>
+  <div class="stage">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;background:#f0ecff;border-radius:8px;padding:8px 12px;width:fit-content">
+      <span style="font-size:18px">📝</span><span style="font-size:13px;color:#7c3aed;font-weight:700">add.py</span>
+    </div>
+    <div class="code-block">
+      <div class="code-line"><span class="ln">1</span><span class="cm"># 2つの数を足す関数</span></div>
+      <div class="code-line"><span class="ln">2</span><span class="kw">def</span> <span class="fn">add</span>(a, b):</div>
+      <div class="code-line"><span class="ln">3</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> a + b</div>
+      <div class="code-line"><span class="ln">4</span>&nbsp;</div>
+      <div class="code-line"><span class="ln">5</span>result = <span class="fn">add</span>(<span class="num">3</span>, <span class="num">5</span>)</div>
+      <div class="code-line"><span class="ln">6</span><span class="fn">print</span>(<span class="str">"答え:"</span>, result)</div>
+    </div>
+    <div class="info-box" style="margin-top:14px">💡 ソースコードは<strong>人間のための言語</strong>で書かれている。英語・数字・記号の組み合わせ。コンピュータにはまだ理解できない！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">次：コンパイル ⚡</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第1章 · Step 2/5</div>
+  <div class="scene-title">⚡ Step 2：コンパイル — 翻訳の魔法</div>
+  <div class="scene-desc">ソースコードは<strong>コンパイラ</strong>という翻訳プログラムに渡される。3段階で、人間語をコンピュータ語に変換する！</div>
+  <div class="stage">
+    <div class="compile-row show"><div class="compile-box source">📄 <span style="color:#7c3aed;font-weight:800">ソースコード</span><br><span style="font-size:11px">def add(a,b): return a+b</span></div></div>
+    <div class="compile-row" id="ca1" style="padding-left:32%"><span class="compile-arrow">↓ 字句解析（トークン化）</span></div>
+    <div class="compile-row" id="cr2"><div class="compile-box">🔤 <span style="color:#7c3aed;font-weight:800">トークン列</span><br><span style="font-size:11px">[DEF] [ID:add] [(] [ID:a] [,] [ID:b] [)] [:] ...</span></div></div>
+    <div class="compile-row" id="ca2" style="padding-left:32%"><span class="compile-arrow">↓ 構文解析・最適化</span></div>
+    <div class="compile-row" id="cr3"><div class="compile-box machine">⚙️ <span style="font-weight:800">機械語（バイトコード）</span><br><span style="font-size:11px">LOAD_FAST 0 &nbsp;BINARY_ADD &nbsp;RETURN_VALUE</span></div></div>
+    <button class="btn-action" style="margin-top:14px" onclick="runCompile()">▶ コンパイル実行！</button>
+  </div>
+  <button class="btn-next" id="btn-c-next" onclick="go('s3')" disabled>次：メモリへロード 🧠</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第1章 · Step 3/5</div>
+  <div class="scene-title">🧠 Step 3：メモリへのロード</div>
+  <div class="scene-desc">コンパイルされた命令は<strong>メモリ（RAM）</strong>に読み込まれる。メモリは番地（アドレス）のついた棚の集まり。セルをクリックして確認しよう！</div>
+  <div class="stage">
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="background:#f0ecff;border:2px solid #ddd6fe;color:#7c3aed;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🟣 命令（コード）</span>
+      <span style="background:#e0f7fa;border:2px solid #b2ebf2;color:#0891b2;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔵 データ</span>
+      <span style="background:#f9f7ff;border:2px dashed #ddd6fe;color:#9b8db4;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">⚪ 空き</span>
+    </div>
+    <div class="memory-grid" id="mem-grid"></div>
+    <div id="mem-detail" class="info-box" style="margin-top:12px;min-height:44px">👆 セルをクリックすると詳細が表示されます！</div>
+  </div>
+  <button class="btn-next" onclick="go('s4')">次：CPUが実行 🔥</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第1章 · Step 4/5</div>
+  <div class="scene-title">🔥 Step 4：CPUが命令を実行する</div>
+  <div class="scene-desc">CPUはメモリから命令を1つずつ取り出し、3ステップで処理する。<strong>フェッチ → デコード → 実行</strong>（これを繰り返す！）</div>
+  <div class="stage">
+    <div class="pipeline">
+      <div class="pipe-stage" id="pipe-fetch"><div class="pipe-icon">📥</div><div class="pipe-label">フェッチ</div><div class="pipe-sub">命令を取り出す</div></div>
+      <div class="pipe-stage" id="pipe-decode"><div class="pipe-icon">🔍</div><div class="pipe-label">デコード</div><div class="pipe-sub">命令を解読する</div></div>
+      <div class="pipe-stage" id="pipe-execute"><div class="pipe-icon">⚡</div><div class="pipe-label">実行</div><div class="pipe-sub">演算・処理</div></div>
+    </div>
+    <div class="cpu-container">
+      <div class="cpu-box">
+        <h4>📊 レジスタ</h4>
+        <div class="register"><span class="reg-name">PC</span><span class="reg-val" id="reg-pc">0x0000</span></div>
+        <div class="register"><span class="reg-name">A</span><span class="reg-val" id="reg-a">0x00</span></div>
+        <div class="register"><span class="reg-name">B</span><span class="reg-val" id="reg-b">0x00</span></div>
+        <div class="register"><span class="reg-name">ALU</span><span class="reg-val" id="reg-alu">0x00</span></div>
+      </div>
+      <div style="flex:1">
+        <div id="cpu-log" style="background:#f9f7ff;border:2px solid #ede9fe;border-radius:10px;padding:12px;font-size:12px;font-family:monospace;min-height:100px;color:#4c1d95;max-height:160px;overflow-y:auto;line-height:1.8"></div>
+        <button class="btn-action" style="margin-top:8px" onclick="stepCPU()" id="btn-step">▶ ステップ実行</button>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" id="btn-cpu-next" onclick="go('s5')" disabled>次：結果の出力 🎉</button>
+</div>
+
+<div class="scene" id="s5">
+  <div class="chapter-label">第1章 · Step 5/5</div>
+  <div class="scene-title">🎉 Step 5：結果が画面に出る！</div>
+  <div class="scene-desc">CPUが計算を終えると、OSを通じて<strong>画面への出力</strong>が行われる。システムコールで「この文字を表示して」と依頼するのだ！</div>
+  <div class="stage">
+    <div class="terminal" id="terminal"><span class="prompt">$ python add.py</span><br><span class="cursor" id="cursor"></span></div>
+    <button class="btn-action" style="margin-top:12px" onclick="runOutput()">▶ 実行する！</button>
+    <div class="info-box" style="margin-top:12px">💡 <code style="background:#ede9fe;padding:2px 6px;border-radius:4px;color:#7c3aed">print()</code>を呼ぶとPythonが<strong>システムコール</strong>を発行。OSがディスプレイドライバを通じてピクセルを書き換え → 文字が見える！✨</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第1章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#f0ecff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. ソースコードを機械語に変換するプログラムは？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">🌐 ブラウザ</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">⚙️ コンパイラ</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">🗄️ データベース</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">📡 ルーター</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#f0ecff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. CPUの実行サイクルの正しい順序は？ 🔄</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">実行→デコード→フェッチ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">デコード→フェッチ→実行</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">フェッチ→デコード→実行 ✓</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">フェッチ→実行→デコード</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第1章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第1章クリア！</h2>
+    <p>プログラムが実行される道筋を<br>ソースコード → コンパイル → メモリ → CPU → 出力<br>と追うことができた！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>ソースコードは人間のために書かれたテキスト</li>
+        <li>コンパイラが機械語（0と1）に変換する</li>
+        <li>命令はメモリ（RAM）に格納される</li>
+        <li>CPUがフェッチ→デコード→実行を繰り返す</li>
+        <li>OSのシステムコールで画面に結果が表示される</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','s5','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s3')initMemory();
+  if(id==='s4')initCPU();
+  window.scrollTo(0,0);
+}
+function runCompile(){
+  ['ca1','cr2','ca2','cr3'].forEach((id,i)=>setTimeout(()=>document.getElementById(id).classList.add('show'),(i+1)*500));
+  setTimeout(()=>document.getElementById('btn-c-next').disabled=false,2300);
+}
+const memData=[
+  {addr:'0x00',label:'LOAD A',type:'code',desc:'引数aをレジスタAに読み込む命令'},
+  {addr:'0x01',label:'LOAD B',type:'code',desc:'引数bをレジスタBに読み込む命令'},
+  {addr:'0x02',label:'ADD',   type:'code',desc:'A+Bを計算してALUに格納する命令'},
+  {addr:'0x03',label:'STORE', type:'code',desc:'計算結果をメモリに書き戻す命令'},
+  {addr:'0x04',label:'PRINT', type:'code',desc:'print関数を呼び出す命令'},
+  {addr:'0x05',label:'CALL',  type:'code',desc:'システムコールで画面出力'},
+  {addr:'0x06',label:'RET',   type:'code',desc:'関数の終了・戻り値を返す'},
+  {addr:'0x07',label:'---',   type:'empty',desc:'未使用領域（空き）'},
+  {addr:'0x08',label:'3',     type:'data', desc:'引数aの値（3）'},
+  {addr:'0x09',label:'5',     type:'data', desc:'引数bの値（5）'},
+  {addr:'0x0A',label:'8',     type:'data', desc:'計算結果（3+5=8）'},
+  {addr:'0x0B',label:'"答え"',type:'data', desc:'文字列データ'},
+  {addr:'0x0C',label:'---',type:'empty',desc:'スタック領域（空き）'},
+  {addr:'0x0D',label:'---',type:'empty',desc:'スタック領域（空き）'},
+  {addr:'0x0E',label:'---',type:'empty',desc:'スタック領域（空き）'},
+  {addr:'0x0F',label:'---',type:'empty',desc:'スタック領域（空き）'},
+];
+function initMemory(){
+  const grid=document.getElementById('mem-grid');
+  if(grid.children.length>0)return;
+  memData.forEach(m=>{
+    const cell=document.createElement('div');
+    cell.className='mem-cell'+(m.type==='code'?' active':m.type==='data'?' data':'');
+    cell.innerHTML=`<div style="font-size:8px;opacity:0.7">${m.addr}</div><div>${m.label}</div>`;
+    cell.onclick=()=>document.getElementById('mem-detail').innerHTML=`<strong>${m.addr}</strong> — ${m.label} 👉 ${m.desc}`;
+    grid.appendChild(cell);
+  });
+}
+const cpuSteps=[
+  {pc:'0x00',a:'0x00',b:'0x00',alu:'0x00',stage:'fetch',  log:'📥 [フェッチ] PC=0x00 → LOAD A 取得'},
+  {pc:'0x00',a:'0x03',b:'0x00',alu:'0x00',stage:'decode', log:'🔍 [デコード] "レジスタAに引数aを読む" と解釈'},
+  {pc:'0x01',a:'0x03',b:'0x00',alu:'0x00',stage:'execute',log:'⚡ [実行] レジスタA ← 3（引数a）'},
+  {pc:'0x01',a:'0x03',b:'0x00',alu:'0x00',stage:'fetch',  log:'📥 [フェッチ] PC=0x01 → LOAD B 取得'},
+  {pc:'0x01',a:'0x03',b:'0x05',alu:'0x00',stage:'decode', log:'🔍 [デコード] "レジスタBに引数bを読む" と解釈'},
+  {pc:'0x02',a:'0x03',b:'0x05',alu:'0x00',stage:'execute',log:'⚡ [実行] レジスタB ← 5（引数b）'},
+  {pc:'0x02',a:'0x03',b:'0x05',alu:'0x00',stage:'fetch',  log:'📥 [フェッチ] PC=0x02 → ADD 取得'},
+  {pc:'0x02',a:'0x03',b:'0x05',alu:'0x08',stage:'decode', log:'🔍 [デコード] "A+Bを計算してALUに格納" と解釈'},
+  {pc:'0x03',a:'0x03',b:'0x05',alu:'0x08',stage:'execute',log:'⚡ [実行] ALU: 3 + 5 = 8 ✅'},
+];
+let cpuStep=0,prevRegs={};
+function initCPU(){
+  cpuStep=0; prevRegs={};
+  ['reg-pc','reg-a','reg-b','reg-alu'].forEach(id=>document.getElementById(id).textContent='0x00');
+  document.getElementById('cpu-log').innerHTML='<span style="color:#9b8db4">▶ ステップ実行ボタンを押してね！</span>';
+  document.getElementById('btn-cpu-next').disabled=true;
+  document.getElementById('btn-step').disabled=false;
+  ['pipe-fetch','pipe-decode','pipe-execute'].forEach(id=>document.getElementById(id).classList.remove('running','done'));
+}
+function stepCPU(){
+  if(cpuStep>=cpuSteps.length)return;
+  const s=cpuSteps[cpuStep];
+  ['pipe-fetch','pipe-decode','pipe-execute'].forEach(id=>document.getElementById(id).classList.remove('running'));
+  document.getElementById('pipe-'+s.stage).classList.add('running');
+  setReg('reg-pc',s.pc,prevRegs.pc); setReg('reg-a',s.a,prevRegs.a);
+  setReg('reg-b',s.b,prevRegs.b); setReg('reg-alu',s.alu,prevRegs.alu);
+  prevRegs={pc:s.pc,a:s.a,b:s.b,alu:s.alu};
+  const log=document.getElementById('cpu-log');
+  log.innerHTML+=`<div>${s.log}</div>`;
+  log.scrollTop=log.scrollHeight;
+  cpuStep++;
+  if(cpuStep>=cpuSteps.length){
+    document.getElementById('btn-step').disabled=true;
+    document.getElementById('btn-cpu-next').disabled=false;
+    ['pipe-fetch','pipe-decode','pipe-execute'].forEach(id=>{document.getElementById(id).classList.remove('running');document.getElementById(id).classList.add('done');});
+  }
+}
+function setReg(id,v,old){
+  const el=document.getElementById(id); el.textContent=v;
+  if(v!==old){el.classList.add('changed');setTimeout(()=>el.classList.remove('changed'),800);}
+}
+function runOutput(){
+  const terminal=document.getElementById('terminal');
+  const text='答え: 8'; let i=0;
+  document.getElementById('cursor').style.display='none';
+  const out=document.createElement('span'); out.className='output';
+  terminal.appendChild(document.createElement('br')); terminal.appendChild(out);
+  function type(){ if(i<text.length){out.textContent+=text[i++];setTimeout(type,80);}
+    else{document.getElementById('cursor').style.display='inline-block';terminal.appendChild(document.getElementById('cursor'));} }
+  setTimeout(type,500);
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！コンパイラはソースコードを機械語に変換する翻訳プログラムです！':'❌ 不正解。正解は「コンパイラ」！ソースを機械語に変換してくれます。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！フェッチ→デコード→実行の順です！':'❌ 不正解。正解は「フェッチ→デコード→実行」！まず取り出して、解読して、実行します。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

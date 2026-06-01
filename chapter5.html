@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第5章：テキストエディタの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#16a34a;--accent2:#4ade80;}
+.arr-cell{min-width:32px;height:36px;background:white;border:2px solid #bbf7d0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:15px;font-weight:800;transition:all 0.3s;color:#2d2040;position:relative}
+.arr-cell.cursor{border-color:#16a34a;background:#f0fdf4}
+.arr-cell.moving{background:#fef3c7;border-color:#d97706;color:#d97706}
+.arr-cell.empty{background:#f9fafb;border-style:dashed;border-color:#d1d5db;color:#d1d5db}
+.arr-idx{position:absolute;top:-16px;font-size:9px;color:#9b8db4;font-weight:700}
+.gap-cell{min-width:28px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:13px;border:2px solid;transition:all 0.3s;font-weight:800}
+.gap-cell.text{background:#f0fdf4;border-color:#86efac;color:#16a34a}
+.gap-cell.gap{background:#f5f3ff;border-color:#c4b5fd;color:#7c3aed;font-size:9px}
+.stack-frame{background:white;border:2px solid #bbf7d0;border-radius:10px;padding:8px 14px;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:10px;transition:all 0.3s;margin-bottom:5px}
+.stack-frame.top{border-color:#16a34a;background:#f0fdf4}
+.sf-op{color:#d97706;font-weight:800;min-width:60px}
+.sf-data{color:#16a34a;font-weight:700}
+.mini-ed{background:#f0fdf4;border:2px solid #bbf7d0;border-radius:10px;padding:12px;font-family:monospace;font-size:14px;min-height:60px;color:#2d2040;white-space:pre-wrap}
+.tok-badge{display:inline-flex;align-items:center;border-radius:6px;padding:2px 8px;font-size:11px;font-family:monospace;font-weight:700;border:1.5px solid;margin:2px}
+.hl-ed{background:#1e1b2e;border-radius:10px;padding:12px;font-family:monospace;font-size:13px;line-height:1.9;color:#e2e0f0}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第5章 · テキストエディタの仕組み</div>
+  <div class="scene-title">📝 エディタの中身は何でできている？</div>
+  <div class="scene-desc">VS Code や Vim でコードを書くとき、エディタの中では何が起きているの？文字を挿入・削除するだけでも実は<strong>巧妙なデータ構造</strong>が使われている。Undoの秘密も解き明かそう！🔍</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">👇 書いてみよう（この後、仕組みを解説！）</div>
+    <div id="intro-ed" contenteditable="true" class="mini-ed" style="outline:none;cursor:text;min-height:80px">def hello():<br>    print("Hello! 🎉")</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：文字列の保存方法 💾</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第5章 · Step 1/4</div>
+  <div class="scene-title">💾 Step 1：単純配列 vs Gap Buffer</div>
+  <div class="scene-desc">文字を単純な配列で持つと、文章の途中に挿入するとき<strong>後ろの文字を全部ずらす</strong>必要がある。<strong>Gap Buffer</strong>は「カーソル位置に空白（ギャップ）を作る」ことで解決する！</div>
+  <div class="stage">
+    <div style="font-size:13px;font-weight:800;color:#dc2626;margin-bottom:8px">😰 単純配列の問題（「X」を先頭に挿入）</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:flex-end" id="naive-arr" style="padding-top:20px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:12px;color:#9b8db4;min-width:90px">移動コスト:</span>
+      <div style="flex:1;background:#f3f4f6;border-radius:6px;overflow:hidden;height:10px"><div style="width:90%;background:linear-gradient(135deg,#dc2626,#f87171);height:10px;border-radius:6px"></div></div>
+      <span style="font-size:12px;font-weight:800;color:#dc2626">O(n) 遅い！</span>
+    </div>
+    <button class="btn-action" style="margin-bottom:16px;--accent:#dc2626;--accent2:#f87171;background:linear-gradient(135deg,#dc2626,#f87171)" onclick="animNaive()">▶ 先頭に挿入を試みる</button>
+
+    <div style="font-size:13px;font-weight:800;color:#16a34a;margin-bottom:8px">✅ Gap Bufferの解決策！</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px" id="gap-vis"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:12px;color:#9b8db4;min-width:90px">挿入コスト:</span>
+      <div style="flex:1;background:#f3f4f6;border-radius:6px;overflow:hidden;height:10px"><div style="width:5%;background:linear-gradient(135deg,#16a34a,#4ade80);height:10px;border-radius:6px"></div></div>
+      <span style="font-size:12px;font-weight:800;color:#16a34a">O(1) 速い！</span>
+    </div>
+    <button class="btn-action" onclick="animGap()">▶ Gap Bufferに文字挿入！</button>
+    <div class="info-box" style="margin-top:12px">💡 Emacs発祥のGap Bufferは現在も多くのエディタで使われている。<br>VS Codeは<strong>Piece Tree</strong>というさらに高度な構造を採用！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：Undo/Redoスタック ↩️</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第5章 · Step 2/4</div>
+  <div class="scene-title">↩️ Step 2：「元に戻す」はスタックで実装</div>
+  <div class="scene-desc">編集操作は<strong>スタック</strong>（積み上げ式のデータ構造）に積まれる。Undoは「最後の操作を取り出して逆にする」だけ！シンプルで確実。</div>
+  <div class="stage">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#16a34a;font-weight:800;margin-bottom:6px">✏️ エディタ</div>
+        <div id="undo-ed" class="mini-ed" style="min-height:60px;font-size:16px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn-action" style="font-size:12px;padding:6px 12px" onclick="undoOp('H')">+H</button>
+          <button class="btn-action" style="font-size:12px;padding:6px 12px" onclick="undoOp('i')">+i</button>
+          <button class="btn-action" style="font-size:12px;padding:6px 12px" onclick="undoOp('!')">+!</button>
+          <button class="btn-action" style="font-size:12px;padding:6px 12px;background:linear-gradient(135deg,#dc2626,#f87171)" onclick="undoUndo()">↩ Undo</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:12px;color:#16a34a;font-weight:800;margin-bottom:6px">📚 Undoスタック（↑が最新）</div>
+        <div id="undo-stack" style="display:flex;flex-direction:column-reverse;gap:4px;min-height:120px"></div>
+        <div style="font-size:11px;color:#9b8db4;margin-top:4px">スタックが空 = これ以上戻れない</div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 Redoは「戻した操作を再スタック」するだけ。<br>VSCodeは<strong>木構造</strong>で複数の分岐を保持する！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：シンタックスハイライト 🎨</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第5章 · Step 3/4</div>
+  <div class="scene-title">🎨 Step 3：コードが色分けされる仕組み</div>
+  <div class="scene-desc">コードに色がつくのは<strong>字句解析（トークン化）</strong>という処理のおかげ。コードを左から読んで「これはキーワード」「これは文字列」と分類し、色を付ける！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">ソースコード（解析前）</div>
+    <div style="background:#f0fdf4;border:2px solid #bbf7d0;border-radius:10px;padding:12px;font-family:monospace;font-size:13px;color:#2d2040;margin-bottom:12px">def hello(name):<br>    print("Hello, " + name)</div>
+    <button class="btn-action" style="margin-bottom:12px" onclick="tokenize()">▶ トークン解析してハイライト！</button>
+    <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">トークン列</div>
+    <div id="tok-list" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;min-height:28px"></div>
+    <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">ハイライト後</div>
+    <div id="hl-result" class="hl-ed"></div>
+  </div>
+  <button class="btn-next" onclick="go('s4')">Step 4：カーソル管理 🎯</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第5章 · Step 4/4</div>
+  <div class="scene-title">🎯 Step 4：カーソルはどこにあるかをどう管理する？</div>
+  <div class="scene-desc">カーソルは「何行目の何文字目」という<strong>行・列</strong>の座標で管理される。クリックや矢印キーで移動するたびに座標が更新される！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">👇 クリックまたは入力してカーソル情報を確認！</div>
+    <div id="cursor-ed" contenteditable="true" class="mini-ed" style="outline:none;cursor:text;line-height:2;min-height:80px"
+      onkeyup="updateCursorInfo(this)" onclick="updateCursorInfo(this)">Hello, World!
+これはサンプルテキストです。
+エディタの仕組みを学ぼう！</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="background:white;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;font-family:monospace;font-size:13px">
+        <div style="font-size:10px;color:#9b8db4;font-weight:700;margin-bottom:3px">カーソル位置</div>
+        行:<span id="cur-ln" style="color:#16a34a;font-weight:800;margin:0 4px">—</span>列:<span id="cur-col" style="color:#16a34a;font-weight:800;margin-left:4px">—</span>
+      </div>
+      <div style="background:white;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;font-family:monospace;font-size:13px">
+        <div style="font-size:10px;color:#9b8db4;font-weight:700;margin-bottom:3px">絶対オフセット</div>
+        <span id="cur-off" style="color:#0891b2;font-weight:800">—</span>
+      </div>
+      <div style="background:white;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;font-family:monospace;font-size:13px">
+        <div style="font-size:10px;color:#9b8db4;font-weight:700;margin-bottom:3px">選択文字数</div>
+        <span id="cur-sel" style="color:#7c3aed;font-weight:800">—</span>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 多くのエディタは「オフセット（先頭から何文字目）」で内部管理し、表示時に行・列に変換する。<br><strong>日本語・絵文字は複数バイト</strong>なので扱いが複雑！🈳</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第5章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. Gap Bufferがテキストの中間挿入を速くする秘訣は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">文字を圧縮して保存する</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">カーソル位置に「空き領域」を作っておく</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">SSDに直接書き込む</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">並列処理で挿入する</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. Undoに使われるデータ構造は？ ↩️</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">キュー（先入れ先出し）</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">スタック（後入れ先出し）</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">ハッシュテーブル</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">二分探索木</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第5章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第5章クリア！</h2>
+    <p>テキストエディタの内部を支える<br>巧妙なデータ構造を学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>単純配列での挿入はO(n)のコストがかかる</li>
+        <li>Gap Bufferはギャップで挿入をO(1)に</li>
+        <li>UndoはスタックLIFOで操作履歴を管理</li>
+        <li>シンタックスハイライトは字句解析で実現</li>
+        <li>カーソルは行・列またはオフセットで管理</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')initArrays();
+  if(id==='s2')initUndo();
+  window.scrollTo(0,0);
+}
+function initArrays(){
+  const arr=document.getElementById('naive-arr');
+  if(arr.children.length)return;
+  ['H','e','l','l','o'].forEach((c,i)=>{
+    const el=document.createElement('div');el.className='arr-cell';
+    const idx=document.createElement('div');idx.className='arr-idx';idx.textContent=i;
+    el.appendChild(idx);el.appendChild(document.createTextNode(c));arr.appendChild(el);
+  });
+  const gv=document.getElementById('gap-vis');
+  ['H','e','l','l','o'].forEach(c=>{const el=document.createElement('div');el.className='gap-cell text';el.textContent=c;gv.appendChild(el);});
+  ['GAP','GAP','GAP'].forEach(()=>{const el=document.createElement('div');el.className='gap-cell gap';el.textContent='GAP';gv.appendChild(el);});
+}
+let naiveRunning=false;
+function animNaive(){
+  if(naiveRunning)return;naiveRunning=true;
+  const arr=document.getElementById('naive-arr');
+  const cells=[...arr.querySelectorAll('.arr-cell')];
+  let i=cells.length-1;
+  function step(){
+    if(i<0){naiveRunning=false;return;}
+    cells[i].classList.add('moving');
+    setTimeout(()=>{cells[i].classList.remove('moving');i--;step();},250);
+  }
+  step();
+}
+function animGap(){
+  const gv=document.getElementById('gap-vis');gv.innerHTML='';
+  ['X','H','e','l','l','o'].forEach(c=>{const el=document.createElement('div');el.className='gap-cell text';el.style.borderColor='#16a34a';el.textContent=c;gv.appendChild(el);});
+  setTimeout(()=>{
+    gv.innerHTML='';
+    ['X','H','e','l','l','o'].forEach(c=>{const el=document.createElement('div');el.className='gap-cell text';el.textContent=c;gv.appendChild(el);});
+    ['GAP','GAP'].forEach(()=>{const el=document.createElement('div');el.className='gap-cell gap';el.textContent='GAP';gv.appendChild(el);});
+  },400);
+}
+let undoText='',undoStack=[];
+function initUndo(){undoText='';undoStack=[];renderUndoEd();renderUndoStack();}
+function undoOp(ch){
+  undoStack.push({ch,before:undoText});undoText+=ch;renderUndoEd();renderUndoStack();
+}
+function undoUndo(){
+  if(!undoStack.length)return;
+  const last=undoStack.pop();undoText=last.before;renderUndoEd();renderUndoStack();
+}
+function renderUndoEd(){document.getElementById('undo-ed').textContent=undoText||'（空）';}
+function renderUndoStack(){
+  const el=document.getElementById('undo-stack');el.innerHTML='';
+  if(!undoStack.length){el.innerHTML='<div style="color:#9b8db4;font-size:12px;padding:8px">（スタックは空）</div>';return;}
+  undoStack.forEach((f,i)=>{
+    const fr=document.createElement('div');fr.className='stack-frame'+(i===undoStack.length-1?' top':'');
+    fr.innerHTML=`<span class="sf-op">insert</span><span class="sf-data">"${f.ch}"</span><span style="color:#9b8db4;font-size:10px">元:"${f.before||'空'}"</span>`;
+    el.appendChild(fr);
+  });
+}
+const TRULES=[{type:'kw',re:/^(def|return|print|if|else)\b/},{type:'str',re:/^"[^"]*"/},{type:'fn',re:/^[a-zA-Z_]\w*(?=\s*\()/},{type:'op',re:/^[+\-*\/=<>!:,\.]+/},{type:'id',re:/^[a-zA-Z_]\w*/},{type:'ws',re:/^\s+/},{type:'other',re:/^./}];
+const TCOLS={kw:'#c084fc',str:'#86efac',fn:'#60a5fa',op:'#7dd3fc',id:'#e2e0f0',other:'#e2e0f0'};
+const TBGS={kw:'#f5f3ff',str:'#f0fdf4',fn:'#eff6ff',op:'#f0f9ff',id:'#f9f7ff'};
+const TBORDERS={kw:'#ddd6fe',str:'#bbf7d0',fn:'#bfdbfe',op:'#bae6fd',id:'#ede9fe'};
+function tokenize(){
+  const src=`def hello(name):\n    print("Hello, " + name)`;
+  const tokens=[];
+  let rem=src;
+  while(rem.length){let m=false;for(const r of TRULES){const mt=rem.match(r.re);if(mt){tokens.push({type:r.type,val:mt[0]});rem=rem.slice(mt[0].length);m=true;break;}}if(!m){tokens.push({type:'other',val:rem[0]});rem=rem.slice(1);}}
+  const tl=document.getElementById('tok-list');tl.innerHTML='';
+  tokens.filter(t=>t.type!=='ws').forEach((t,i)=>{
+    setTimeout(()=>{
+      const el=document.createElement('span');el.className='tok-badge';
+      el.style.background=TBGS[t.type]||'#f9f7ff';el.style.borderColor=TBORDERS[t.type]||'#e2ddf0';el.style.color=TCOLS[t.type]||'#2d2040';
+      el.textContent=t.val.replace(/\n/,'↵');tl.appendChild(el);
+    },i*60);
+  });
+  setTimeout(()=>{
+    const res=document.getElementById('hl-result');
+    res.innerHTML=tokens.map(t=>{
+      const e=t.val.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/ /g,'&nbsp;');
+      const c=TCOLS[t.type];return c&&t.type!=='ws'?`<span style="color:${c}">${e}</span>`:e;
+    }).join('');
+  },tokens.filter(t=>t.type!=='ws').length*60+300);
+}
+function updateCursorInfo(el){
+  const sel=window.getSelection();if(!sel.rangeCount)return;
+  const range=sel.getRangeAt(0);
+  const preRange=range.cloneRange();preRange.selectNodeContents(el);preRange.setEnd(range.startContainer,range.startOffset);
+  const pre=preRange.toString();const preLines=pre.split('\n');
+  document.getElementById('cur-ln').textContent=preLines.length;
+  document.getElementById('cur-col').textContent=preLines[preLines.length-1].length+1;
+  document.getElementById('cur-off').textContent=pre.length;
+  document.getElementById('cur-sel').textContent=range.toString().length;
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！カーソル位置にギャップを作ることで、そこへの挿入をO(1)で行えます！':'❌ 不正解。正解は「カーソル位置に空き領域を作っておく」こと！';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！スタック（LIFO）で操作を積んでいき、Undoで取り出す！':'❌ 不正解。正解は「スタック」！後入れ先出しで最後の操作を取り出します。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

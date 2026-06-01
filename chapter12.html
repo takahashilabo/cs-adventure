@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第12章：GPUとグラフィックスの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#b45309;--accent2:#fbbf24;}
+canvas{border-radius:10px;display:block}
+.vertex{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#b45309,#fbbf24);border:2px solid #92400e;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;cursor:pointer;transition:all 0.25s;box-shadow:0 2px 8px rgba(180,83,9,0.25)}
+.vertex:hover{transform:scale(1.15)}
+.shader-box{background:#1e1b2e;border-radius:12px;padding:14px;font-family:'Courier New',monospace;font-size:12px;color:#e2e0f0;line-height:1.8}
+.glsl-kw{color:#c084fc}
+.glsl-type{color:#60a5fa}
+.glsl-fn{color:#fbbf24}
+.glsl-num{color:#fb923c}
+.parallel-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin:8px 0}
+.cuda-core{width:100%;aspect-ratio:1;border-radius:6px;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;transition:all 0.2s;cursor:pointer}
+.cuda-core.idle{background:#f9f7ff;border-color:#ddd6fe;color:#c4b5d4}
+.cuda-core.busy{border-color:transparent;color:white}
+.pipeline-gpu{display:flex;flex-direction:column;gap:6px}
+.gpu-stage{padding:10px 14px;border-radius:10px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;border:2px solid;transition:all 0.4s}
+.gpu-stage.idle{background:white;border-color:#fde68a;color:#92400e}
+.gpu-stage.active{background:linear-gradient(135deg,#b45309,#fbbf24);border-color:transparent;color:white}
+.gpu-stage.done{background:#f0fdf4;border-color:#86efac;color:#16a34a}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第12章 · GPUとグラフィックスの仕組み</div>
+  <div class="scene-title">🎮 3Dゲームはどうやって描かれる？</div>
+  <div class="scene-desc">ゲームの美しい3D映像も、最終的にはピクセルの集まり。3D空間の数字がどうやって2D画面のピクセルに変わるのか？<strong>GPU（グラフィックス処理装置）</strong>の並列処理の秘密を探ろう！</div>
+  <div class="stage" style="text-align:center">
+    <canvas id="intro-canvas" width="400" height="200" style="width:100%;max-width:400px;background:#1e1b2e"></canvas>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn-action" style="font-size:12px;padding:6px 16px" onclick="drawScene('wire')">🔲 ワイヤーフレーム</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 16px" onclick="drawScene('flat')">🟨 フラットシェーディング</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 16px" onclick="drawScene('smooth')">✨ スムーズシェーディング</button>
+    </div>
+    <div style="font-size:12px;color:#9b8db4;margin-top:8px">← ボタンでレンダリングの段階を確認！</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：頂点と三角形 →</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第12章 · Step 1/4</div>
+  <div class="scene-title">📐 Step 1：3Dモデルは三角形の集まり</div>
+  <div class="scene-desc">3Dモデルはすべて<strong>三角形（ポリゴン）</strong>の集まりで表現される。なぜ三角形？常に平面で、どんな形も三角形で近似できるから。頂点（Vertex）をクリックして確認しよう！</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <canvas id="poly-canvas" width="280" height="200" style="width:100%;max-width:280px;background:#1e1b2e;cursor:pointer" onclick="clickVertex(event,this)"></canvas>
+        <div style="font-size:12px;color:#9b8db4;margin-top:6px;text-align:center">👆 頂点をクリック！</div>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <div id="vertex-detail" class="info-box" style="min-height:120px">
+          <div style="color:#9b8db4;text-align:center;padding:20px">頂点をクリックすると<br>3D座標が表示されます</div>
+        </div>
+        <div style="margin-top:10px;background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:10px;font-size:12px;color:#92400e">
+          💡 このキューブは <strong>8頂点 × 6面 × 2三角形 = 12個</strong> の三角形で構成されている。<br>人間の顔は数万〜数十万ポリゴン！
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：シェーダー →</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第12章 · Step 2/4</div>
+  <div class="scene-title">✨ Step 2：シェーダー — GPUで動く小さなプログラム</div>
+  <div class="scene-desc"><strong>シェーダー</strong>はGPU上で実行される小さなプログラム。<strong>頂点シェーダー</strong>（3D→2D座標変換）と<strong>フラグメントシェーダー</strong>（ピクセルの色計算）の2つが主役！</div>
+  <div class="stage">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;color:#b45309;font-weight:800;margin-bottom:6px">🔺 頂点シェーダー（GLSL）</div>
+        <div class="shader-box">
+          <span class="glsl-kw">void</span> <span class="glsl-fn">main</span>() {<br>
+          &nbsp;&nbsp;<span class="glsl-type">vec4</span> pos = <br>
+          &nbsp;&nbsp;&nbsp;&nbsp;projMatrix *<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;viewMatrix *<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;modelMatrix *<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;position;<br>
+          &nbsp;&nbsp;gl_Position = pos;<br>
+          }
+        </div>
+        <div style="font-size:11px;color:#9b8db4;margin-top:6px">3D座標 → 2D画面座標に変換</div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;color:#b45309;font-weight:800;margin-bottom:6px">🎨 フラグメントシェーダー（GLSL）</div>
+        <div class="shader-box">
+          <span class="glsl-kw">void</span> <span class="glsl-fn">main</span>() {<br>
+          &nbsp;&nbsp;<span class="glsl-type">vec3</span> light =<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;normalize(lightPos<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;- fragPos);<br>
+          &nbsp;&nbsp;<span class="glsl-type">float</span> diff =<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;dot(normal, light);<br>
+          &nbsp;&nbsp;color = baseColor<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;* diff;<br>
+          }
+        </div>
+        <div style="font-size:11px;color:#9b8db4;margin-top:6px">光と法線でピクセルの色を計算</div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 シェーダーはGPUの何千ものコアで<strong>同時並列実行</strong>される。<br>フルHD解像度なら約200万ピクセル × フレームシェーダーが同時に走る！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：GPUの並列処理 →</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第12章 · Step 3/4</div>
+  <div class="scene-title">⚡ Step 3：GPUはCPUの何が違う？</div>
+  <div class="scene-desc">CPUは数個〜数十個の<strong>汎用コア</strong>（複雑な処理が得意）。GPUは数千〜数万個の<strong>小さなコア</strong>（単純な処理を一斉並列実行）。この違いが映像処理を超高速にする！</div>
+  <div class="stage">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div style="flex:1;min-width:160px;background:#f0f9ff;border:2px solid #bae6fd;border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">🧠 CPU</div>
+        <div style="font-size:24px;font-weight:900;color:#0369a1">8コア</div>
+        <div style="font-size:12px;color:#6b5f80">高性能・複雑処理向け</div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:3px">
+          <div style="background:#0369a1;border-radius:4px;height:20px" title="Core"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+          <div style="background:#0369a1;border-radius:4px;height:20px"></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:160px;background:#fffbeb;border:2px solid #fde68a;border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">🎮 GPU</div>
+        <div style="font-size:24px;font-weight:900;color:#b45309">10,000+コア</div>
+        <div style="font-size:12px;color:#6b5f80">大量・単純処理向け</div>
+        <div class="parallel-grid" id="gpu-cores" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <button class="btn-action" onclick="animGPU()" id="btn-gpu">▶ 並列処理をシミュレート！</button>
+    <div id="gpu-log" style="margin-top:10px;background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:10px;font-size:12px;font-family:monospace;color:#92400e;min-height:40px"></div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第12章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. 3Dモデルの最小構成単位は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">ピクセル</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">三角形（ポリゴン）</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">正方形</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">円</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. GPUがCPUより画像処理が速い理由は？ ⚡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">クロック周波数が高いから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">メモリが大きいから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">数千コアで超並列に同時処理するから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">空冷ファンが強力だから</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第12章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第12章クリア！</h2>
+    <p>3Dグラフィックスの仕組みと<br>GPUの並列処理の力を学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>3Dモデルは三角形（ポリゴン）の集まり</li>
+        <li>頂点シェーダーが3D→2D座標に変換する</li>
+        <li>フラグメントシェーダーがピクセルの色を計算</li>
+        <li>GPUは数千コアで全ピクセルを同時処理</li>
+        <li>CPUは賢さ、GPUは数の力で勝負！</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s0')drawScene('wire');
+  if(id==='s1')initPolyCanvas();
+  if(id==='s3')initGPUCores();
+  window.scrollTo(0,0);
+}
+
+// S0: intro 3D canvas
+function drawScene(mode){
+  const canvas=document.getElementById('intro-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=400,H=200;
+  ctx.fillStyle='#1e1b2e'; ctx.fillRect(0,0,W,H);
+  // simple cube projection
+  const t=Date.now()/1000;
+  const cx=W/2,cy=H/2,r=60;
+  const pts3d=[[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1]];
+  const project=([x,y,z])=>{
+    const rx=x*Math.cos(0.5)+z*Math.sin(0.5);
+    const rz=-x*Math.sin(0.5)+z*Math.cos(0.5);
+    const ry=y*Math.cos(0.3)-rz*Math.sin(0.3);
+    const rz2=y*Math.sin(0.3)+rz*Math.cos(0.3);
+    return [cx+rx*r/(rz2+3),cy-ry*r/(rz2+3)];
+  };
+  const pts=pts3d.map(project);
+  const faces=[[0,1,3,2],[4,5,7,6],[0,2,6,4],[1,3,7,5],[0,1,5,4],[2,3,7,6]];
+  const colors=['#b45309','#d97706','#f59e0b','#fbbf24','#92400e','#78350f'];
+  if(mode==='wire'){
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
+    faces.forEach(f=>{
+      ctx.beginPath(); ctx.moveTo(...pts[f[0]]);
+      f.forEach(i=>ctx.lineTo(...pts[i]));
+      ctx.closePath(); ctx.stroke();
+    });
+  } else {
+    faces.forEach((f,fi)=>{
+      const alpha=mode==='smooth'?0.85:1;
+      ctx.fillStyle=colors[fi];
+      ctx.globalAlpha=alpha;
+      ctx.beginPath(); ctx.moveTo(...pts[f[0]]);
+      f.forEach(i=>ctx.lineTo(...pts[i]));
+      ctx.closePath(); ctx.fill();
+      if(mode==='wire'||mode==='smooth'){
+        ctx.globalAlpha=0.3; ctx.strokeStyle='#fff';ctx.lineWidth=0.5; ctx.stroke();
+      }
+    });
+    ctx.globalAlpha=1;
+  }
+}
+
+// S1: polygon canvas
+const cubeVerts3D=[
+  {x:1,y:1,z:1},{x:1,y:1,z:-1},{x:1,y:-1,z:1},{x:1,y:-1,z:-1},
+  {x:-1,y:1,z:1},{x:-1,y:1,z:-1},{x:-1,y:-1,z:1},{x:-1,y:-1,z:-1}
+];
+function initPolyCanvas(){
+  const canvas=document.getElementById('poly-canvas');
+  const ctx=canvas.getContext('2d');
+  drawPolyScene(ctx,canvas.width,canvas.height,-1);
+}
+function drawPolyScene(ctx,W,H,highlighted){
+  ctx.fillStyle='#1e1b2e'; ctx.fillRect(0,0,W,H);
+  const r=50,cx=W/2,cy=H/2;
+  const project=v=>{
+    const rx=v.x*Math.cos(0.6)+v.z*Math.sin(0.6);
+    const rz=-v.x*Math.sin(0.6)+v.z*Math.cos(0.6);
+    const ry=v.y*Math.cos(0.4)-rz*Math.sin(0.4);
+    const rz2=v.y*Math.sin(0.4)+rz*Math.cos(0.4);
+    return {sx:cx+rx*r/(rz2+3),sy:cy-ry*r/(rz2+3)};
+  };
+  const pts=cubeVerts3D.map(project);
+  // edges
+  const edges=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+  ctx.strokeStyle='rgba(251,191,36,0.4)'; ctx.lineWidth=1;
+  edges.forEach(([a,b])=>{ ctx.beginPath(); ctx.moveTo(pts[a].sx,pts[a].sy); ctx.lineTo(pts[b].sx,pts[b].sy); ctx.stroke(); });
+  // vertices
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.sx,p.sy,i===highlighted?10:6,0,Math.PI*2);
+    ctx.fillStyle=i===highlighted?'#fbbf24':'#b45309';
+    ctx.fill();
+    ctx.fillStyle='white'; ctx.font=`bold ${i===highlighted?10:8}px monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('V'+i,p.sx,p.sy);
+  });
+}
+function clickVertex(e,canvas){
+  const rect=canvas.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*canvas.width/rect.width;
+  const my=(e.clientY-rect.top)*canvas.height/rect.height;
+  const r=50,cx=canvas.width/2,cy=canvas.height/2;
+  const project=v=>{
+    const rx=v.x*Math.cos(0.6)+v.z*Math.sin(0.6);
+    const rz=-v.x*Math.sin(0.6)+v.z*Math.cos(0.6);
+    const ry=v.y*Math.cos(0.4)-rz*Math.sin(0.4);
+    const rz2=v.y*Math.sin(0.4)+rz*Math.cos(0.4);
+    return {sx:cx+rx*r/(rz2+3),sy:cy-ry*r/(rz2+3)};
+  };
+  const pts=cubeVerts3D.map(project);
+  let closest=-1,minD=999;
+  pts.forEach((p,i)=>{ const d=Math.hypot(mx-p.sx,my-p.sy); if(d<minD){minD=d;closest=i;} });
+  if(closest>=0&&minD<25){
+    const v=cubeVerts3D[closest];
+    document.getElementById('vertex-detail').innerHTML=`
+      <div style="font-size:13px;color:#b45309;font-weight:800;margin-bottom:8px">🔺 V${closest} の座標</div>
+      <div style="font-family:monospace;font-size:13px;line-height:2;color:#2d2040">
+        x = <span style="color:#b45309;font-weight:800">${v.x}.0</span><br>
+        y = <span style="color:#b45309;font-weight:800">${v.y}.0</span><br>
+        z = <span style="color:#b45309;font-weight:800">${v.z}.0</span>
+      </div>
+      <div style="font-size:12px;color:#9b8db4;margin-top:8px">このVertex情報が頂点シェーダーに入力される</div>
+    `;
+    drawPolyScene(canvas.getContext('2d'),canvas.width,canvas.height,closest);
+  }
+}
+
+// S3: GPU cores
+function initGPUCores(){
+  const grid=document.getElementById('gpu-cores');
+  if(grid.children.length>0)return;
+  const colors=['#b45309','#d97706','#f59e0b','#fbbf24','#0369a1','#9333ea','#dc2626','#16a34a'];
+  for(let i=0;i<64;i++){
+    const el=document.createElement('div');
+    el.className='cuda-core idle';
+    el.textContent='·';
+    grid.appendChild(el);
+  }
+}
+let gpuRunning=false;
+function animGPU(){
+  if(gpuRunning)return; gpuRunning=true;
+  document.getElementById('btn-gpu').disabled=true;
+  const cores=document.querySelectorAll('.cuda-core');
+  const colors=['#b45309','#d97706','#f59e0b','#fbbf24'];
+  const log=document.getElementById('gpu-log');
+  log.innerHTML='🚀 全64コアが同時にピクセル計算開始！';
+  cores.forEach((c,i)=>{
+    setTimeout(()=>{
+      c.className='cuda-core busy';
+      c.style.background=`linear-gradient(135deg,${colors[i%4]},${colors[(i+1)%4]})`;
+      c.style.borderColor='transparent';
+      c.textContent='▶';
+    },i*20);
+  });
+  setTimeout(()=>{
+    cores.forEach(c=>{
+      c.className='cuda-core idle';
+      c.style.background='';
+      c.style.borderColor='';
+      c.textContent='✓';
+      c.style.background='#f0fdf4';
+      c.style.borderColor='#86efac';
+      c.style.color='#16a34a';
+    });
+    log.innerHTML+='<br>✅ 64ピクセルを同時計算完了！CPUなら順番に64回かかる処理を一瞬で！';
+    document.getElementById('btn-gpu').disabled=false;
+    gpuRunning=false;
+    setTimeout(()=>{
+      cores.forEach(c=>{c.className='cuda-core idle';c.style.background='';c.style.borderColor='';c.style.color='';c.textContent='·';});
+    },2000);
+  },64*20+500);
+}
+
+// init
+drawScene('wire');
+
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！三角形は常に平面で、どんな形も近似できる最小単位です！':'❌ 不正解。正解は「三角形（ポリゴン）」！3Dモデルは三角形の集まりで表現されます。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！GPUの数千コアが全ピクセルを同時処理する並列パワーが映像処理を超高速にします！':'❌ 不正解。正解は「数千コアで超並列に同時処理するから」！CPUは1〜2個ずつ処理、GPUは数千個を一斉に！';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

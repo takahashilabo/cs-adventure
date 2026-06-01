@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第10章：OSとプロセスの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#0369a1;--accent2:#38bdf8;}
+.process-card{background:white;border:2px solid #bae6fd;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:all 0.3s;cursor:pointer}
+.process-card:hover{transform:translateX(4px);border-color:#0369a1;}
+.process-card.running{border-color:#16a34a;background:#f0fdf4;}
+.process-card.waiting{border-color:#d97706;background:#fffbeb;}
+.process-card.sleeping{border-color:#6b7280;background:#f9fafb;}
+.process-icon{font-size:24px}
+.process-name{font-weight:800;font-size:14px;color:#0369a1}
+.process-status{font-size:11px;padding:2px 10px;border-radius:20px;font-weight:700;margin-left:auto}
+.status-run{background:#dcfce7;color:#16a34a}
+.status-wait{background:#fef3c7;color:#d97706}
+.status-sleep{background:#f3f4f6;color:#6b7280}
+.cpu-timeline{display:flex;gap:2px;margin:6px 0;border-radius:6px;overflow:hidden;height:28px}
+.cpu-slice{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:white;transition:all 0.3s}
+.mem-map{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin:8px 0}
+.mem-block{height:28px;border-radius:4px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.2s}
+.mem-block:hover{transform:scale(1.1)}
+.vm-diagram{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+.vm-box{background:white;border:2px solid #bae6fd;border-radius:12px;padding:14px;text-align:center;min-width:130px}
+.vm-box h4{font-size:12px;color:#0369a1;font-weight:800;margin-bottom:8px}
+.vm-page{height:22px;border-radius:5px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1.5px solid}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第10章 · OSとプロセスの仕組み</div>
+  <div class="scene-title">🧠 OSはどうやって複数アプリを動かす？</div>
+  <div class="scene-desc">ブラウザで音楽を聴きながらWordを書いて、Slackの通知も来る。コンピュータのCPUは基本1つなのに、どうして同時に動いてるの？<strong>OS（オペレーティングシステム）</strong>の魔法を解き明かそう！✨</div>
+  <div class="stage">
+    <div style="text-align:center;margin-bottom:12px;font-size:13px;color:#9b8db4;font-weight:700">今動いているプロセス</div>
+    <div id="process-list">
+      <div class="process-card running"><span class="process-icon">🎵</span><div><div class="process-name">Music Player</div><div style="font-size:11px;color:#9b8db4">PID: 1042</div></div><span class="process-status status-run">実行中</span></div>
+      <div class="process-card waiting"><span class="process-icon">🌐</span><div><div class="process-name">Chrome</div><div style="font-size:11px;color:#9b8db4">PID: 1043</div></div><span class="process-status status-wait">待機中</span></div>
+      <div class="process-card sleeping"><span class="process-icon">📝</span><div><div class="process-name">Word</div><div style="font-size:11px;color:#9b8db4">PID: 1044</div></div><span class="process-status status-sleep">スリープ</span></div>
+      <div class="process-card sleeping"><span class="process-icon">💬</span><div><div class="process-name">Slack</div><div style="font-size:11px;color:#9b8db4">PID: 1045</div></div><span class="process-status status-sleep">スリープ</span></div>
+    </div>
+    <div class="info-box" style="margin-top:10px">💡 CPUは<strong>超高速で切り替えながら</strong>各プロセスを少しずつ実行している。人間には「同時」に見えるが、実は交互！</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：スケジューリング →</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第10章 · Step 1/4</div>
+  <div class="scene-title">⏰ Step 1：CPUスケジューリング</div>
+  <div class="scene-desc">OSの<strong>スケジューラ</strong>がCPUの使用時間を各プロセスに割り当てる。一般的な方式は<strong>ラウンドロビン</strong>（順番に一定時間ずつ）。体験してみよう！</div>
+  <div class="stage">
+    <div style="font-size:13px;font-weight:700;color:#0369a1;margin-bottom:8px">CPUタイムライン（各マスが1タイムスライス）</div>
+    <div class="cpu-timeline" id="cpu-timeline" style="height:36px">
+      <div style="flex:1;background:#e0f2fe;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#9b8db4">▶ スタートを押してね</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap" id="proc-legend"></div>
+    <button class="btn-action" style="margin-top:12px" onclick="startScheduler()" id="btn-sched">▶ スケジューラ起動！</button>
+    <div id="sched-log" style="margin-top:10px;background:#f0f9ff;border:2px solid #bae6fd;border-radius:10px;padding:10px;font-family:monospace;font-size:12px;min-height:60px;max-height:100px;overflow-y:auto;color:#0369a1"></div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：仮想メモリ →</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第10章 · Step 2/4</div>
+  <div class="scene-title">🗺️ Step 2：仮想メモリ — 「自分専用」のメモリ</div>
+  <div class="scene-desc">各プロセスは<strong>仮想アドレス空間</strong>という「自分専用のメモリ」を持っているように見える。実際はOSが物理メモリに変換してくれている！プロセスは他のプロセスのメモリを見られない。</div>
+  <div class="stage">
+    <div class="vm-diagram">
+      <div class="vm-box">
+        <h4>🎵 Music Player<br>仮想アドレス空間</h4>
+        <div class="vm-page" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1">0x0000 コード</div>
+        <div class="vm-page" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8">0x1000 スタック</div>
+        <div class="vm-page" style="background:#ede9fe;border-color:#c4b5fd;color:#7c3aed">0x2000 ヒープ</div>
+        <div class="vm-page" style="background:#f3f4f6;border-color:#d1d5db;color:#6b7280" style="opacity:0.4">--- (未使用)</div>
+      </div>
+      <div style="font-size:28px;color:#0369a1">⟶<br><small style="font-size:12px">MMU変換</small></div>
+      <div class="vm-box" style="border-color:#fde68a;background:#fffbeb">
+        <h4>💾 物理メモリ（RAM）</h4>
+        <div class="vm-page" style="background:#e0f2fe;border-color:#7dd3fc;color:#0369a1">0x4000 Music Code</div>
+        <div class="vm-page" style="background:#fce7f3;border-color:#f9a8d4;color:#be185d">0x5000 Chrome Code</div>
+        <div class="vm-page" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8">0x6000 Music Stack</div>
+        <div class="vm-page" style="background:#dcfce7;border-color:#86efac;color:#16a34a">0x7000 Word Code</div>
+        <div class="vm-page" style="background:#ede9fe;border-color:#c4b5fd;color:#7c3aed">0x8000 Music Heap</div>
+      </div>
+      <div style="font-size:28px;color:#0369a1">⟵<br><small style="font-size:12px">MMU変換</small></div>
+      <div class="vm-box">
+        <h4>🌐 Chrome<br>仮想アドレス空間</h4>
+        <div class="vm-page" style="background:#fce7f3;border-color:#f9a8d4;color:#be185d">0x0000 コード</div>
+        <div class="vm-page" style="background:#fff1f2;border-color:#fda4af;color:#be123c">0x1000 スタック</div>
+        <div class="vm-page" style="background:#fef3c7;border-color:#fde68a;color:#d97706">0x2000 ヒープ</div>
+        <div class="vm-page" style="background:#f3f4f6;border-color:#d1d5db;color:#6b7280" style="opacity:0.4">--- (未使用)</div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 <strong>MMU（Memory Management Unit）</strong>がCPU内で仮想→物理アドレス変換を高速で行う。<br>プロセスが他のプロセスのメモリにアクセスしようとすると<strong>セグメンテーション違反</strong>でクラッシュ！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：システムコール →</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第10章 · Step 3/4</div>
+  <div class="scene-title">📞 Step 3：システムコール — OSへのお願い</div>
+  <div class="scene-desc">プロセスはハードウェアに直接触れない。<strong>システムコール</strong>でOSに「お願い」して間接的に操作する。これがOSがすべてを管理できる仕組み！</div>
+  <div class="stage">
+    <div style="display:flex;flex-direction:column;gap:10px" id="syscall-vis">
+      <div style="background:#f0f9ff;border:2px solid #bae6fd;border-radius:12px;padding:12px 16px;font-weight:700;text-align:center">
+        🎵 Music Player（ユーザーモード）
+      </div>
+      <div style="text-align:center;font-size:13px;color:#9b8db4">↓ システムコール発行</div>
+      <div id="syscall-examples" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"></div>
+      <div style="text-align:center;font-size:13px;color:#9b8db4">↓ カーネルモードに切り替わる</div>
+      <div style="background:linear-gradient(135deg,#0369a1,#38bdf8);border-radius:12px;padding:12px 16px;font-weight:700;text-align:center;color:white">
+        🧠 OS カーネル（特権モード）— ハードウェアを管理
+      </div>
+    </div>
+    <div id="syscall-detail" class="info-box" style="margin-top:12px;min-height:40px">👆 上のシステムコールをクリックすると詳細が表示されます！</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第10章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#e0f2fe,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. OSが複数プロセスをCPUに割り当てる仕組みを何という？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">コンパイル</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">スケジューリング</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">ルーティング</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">サンプリング</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#e0f2fe,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. 各プロセスが「自分専用のメモリがある」ように見せる仕組みは？ 💡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">スワップ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">仮想メモリ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">キャッシュ</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">レジスタ</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第10章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第10章クリア！</h2>
+    <p>OSがどうやって複数のアプリを<br>うまく管理しているかを学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>OSのスケジューラがCPU時間を分配する</li>
+        <li>ラウンドロビンで順番に少しずつ実行</li>
+        <li>仮想メモリで各プロセスを完全に独立させる</li>
+        <li>MMUが仮想→物理アドレスを変換する</li>
+        <li>システムコールでOSにハードウェア操作を依頼</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')initScheduler();
+  if(id==='s3')initSyscall();
+  window.scrollTo(0,0);
+}
+const procs=[
+  {name:'🎵Music',color:'#0369a1',bg:'#e0f2fe'},
+  {name:'🌐Chrome',color:'#be185d',bg:'#fce7f3'},
+  {name:'📝Word',color:'#16a34a',bg:'#dcfce7'},
+  {name:'💬Slack',color:'#d97706',bg:'#fef3c7'},
+];
+function initScheduler(){
+  const leg=document.getElementById('proc-legend');
+  if(leg.children.length>0)return;
+  procs.forEach(p=>{
+    const el=document.createElement('span');
+    el.style.cssText=`background:${p.bg};border:2px solid ${p.color};color:${p.color};border-radius:20px;padding:3px 12px;font-size:12px;font-weight:800`;
+    el.textContent=p.name;
+    leg.appendChild(el);
+  });
+}
+let schedRunning=false;
+function startScheduler(){
+  if(schedRunning)return; schedRunning=true;
+  document.getElementById('btn-sched').disabled=true;
+  const tl=document.getElementById('cpu-timeline');
+  const log=document.getElementById('sched-log');
+  tl.innerHTML='';
+  const slots=24;
+  let i=0;
+  function addSlice(){
+    if(i>=slots)return;
+    const p=procs[i%procs.length];
+    const el=document.createElement('div');
+    el.className='cpu-slice';
+    el.style.background=p.color;
+    el.textContent=p.name.split('')[0];
+    el.title=p.name;
+    tl.appendChild(el);
+    log.innerHTML+=`<div>タイムスライス${i+1}: <span style="color:${p.color}">${p.name}</span> 実行中...</div>`;
+    log.scrollTop=log.scrollHeight;
+    i++; setTimeout(addSlice,180);
+  }
+  addSlice();
+}
+const syscalls=[
+  {name:'read()',icon:'📖',desc:'ファイルやデバイスからデータを読み込む。例：音楽ファイルのデータを読む'},
+  {name:'write()',icon:'✏️',desc:'ファイルやデバイスにデータを書き込む。例：ログをファイルに保存'},
+  {name:'open()',icon:'📂',desc:'ファイルを開いてファイルディスクリプタを取得する'},
+  {name:'fork()',icon:'🌿',desc:'現在のプロセスのコピーを作って子プロセスを生成する'},
+  {name:'socket()',icon:'🔌',desc:'ネットワーク通信のためのソケットを作成する'},
+  {name:'mmap()',icon:'🗺️',desc:'物理メモリをプロセスのアドレス空間にマッピングする'},
+];
+function initSyscall(){
+  const el=document.getElementById('syscall-examples');
+  if(el.children.length>0)return;
+  syscalls.forEach(s=>{
+    const btn=document.createElement('button');
+    btn.style.cssText='background:white;border:2px solid #bae6fd;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;color:#0369a1;font-family:inherit';
+    btn.textContent=s.icon+' '+s.name;
+    btn.onmouseenter=()=>{btn.style.background='#e0f2fe'};
+    btn.onmouseleave=()=>{btn.style.background='white'};
+    btn.onclick=()=>{
+      document.getElementById('syscall-detail').innerHTML=`<strong style="color:#0369a1">${s.icon} ${s.name}</strong> — ${s.desc}`;
+    };
+    el.appendChild(btn);
+  });
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！スケジューリングで各プロセスにCPU時間を割り当てます！':'❌ 不正解。正解は「スケジューリング」！OSが各プロセスへCPU時間を分配する仕組みです。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！仮想メモリでプロセスを独立させ、互いに干渉できないようにします！':'❌ 不正解。正解は「仮想メモリ」！各プロセスが独自のアドレス空間を持つように見せる仕組みです。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第8章：ファイルシステムの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root { --accent:#0f766e; --accent2:#2dd4bf; }
+/* disk vis */
+.disk-track { display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+.disk-sector {
+  width:36px; height:36px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:800; cursor:pointer;
+  border:2px solid; transition:all 0.2s cubic-bezier(.34,1.56,.64,1);
+  background:white;
+}
+.disk-sector:hover { transform:scale(1.1); }
+.disk-sector.free   { border-color:#e2ddf0; color:#c4b5d4; }
+.disk-sector.used   { background:linear-gradient(135deg,#0f766e,#2dd4bf); border-color:#0f766e; color:white; }
+.disk-sector.dir    { background:linear-gradient(135deg,#d97706,#fbbf24); border-color:#d97706; color:white; }
+.disk-sector.meta   { background:linear-gradient(135deg,#7c3aed,#a78bfa); border-color:#7c3aed; color:white; }
+.disk-sector.highlight { box-shadow:0 0 0 3px #0f766e,0 0 16px rgba(15,118,110,0.4); transform:scale(1.12); }
+
+/* file tree */
+.file-tree { font-family:'Courier New',monospace; font-size:13px; line-height:2.2; }
+.file-item { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:8px; cursor:pointer; transition:all 0.2s; }
+.file-item:hover { background:#f0fdf9; }
+.file-item.selected { background:#e6fffa; border-left:3px solid #0f766e; }
+.file-icon { font-size:16px; }
+.file-name { color:#2d2040; font-weight:700; }
+.file-size { color:#9b8db4; font-size:11px; margin-left:auto; }
+
+/* inode */
+.inode-box { background:white; border:2px solid #b2f5ea; border-radius:12px; padding:14px; }
+.inode-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f0fdf9; font-size:13px; }
+.inode-row:last-child { border:none; }
+.inode-key { color:#0f766e; font-weight:700; }
+.inode-val { color:#2d2040; font-family:monospace; }
+
+/* block chain */
+.block-chain { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.block-node {
+  background:white; border:2px solid #b2f5ea; border-radius:10px;
+  padding:8px 12px; font-family:monospace; font-size:12px; text-align:center;
+  min-width:70px; transition:all 0.3s;
+}
+.block-node.active { background:linear-gradient(135deg,#0f766e,#2dd4bf); color:white; border-color:transparent; }
+.block-arrow { color:#0f766e; font-size:18px; font-weight:900; }
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第8章 · ファイルシステムの仕組み</div>
+  <div class="scene-title">💾 ファイルはディスクのどこにある？</div>
+  <div class="scene-desc">パソコンに保存する「ファイル」。でも実際にはディスクのどこに保存されているの？<strong>ファイルシステム</strong>という管理システムが、すべてのファイルの場所を追跡している。探ってみよう 🕵️</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#0f766e;font-weight:700;margin-bottom:8px">💿 ディスク（SSD/HDD）のイメージ</div>
+    <div class="disk-track" id="intro-disk"></div>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <span style="background:#e6fffa;border:2px solid #b2f5ea;color:#0f766e;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🟢 ファイルデータ</span>
+      <span style="background:#fffbeb;border:2px solid #fde68a;color:#d97706;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🟡 ディレクトリ</span>
+      <span style="background:#f5f3ff;border:2px solid #ddd6fe;color:#7c3aed;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">🟣 メタデータ</span>
+      <span style="background:#fafafa;border:2px solid #e2ddf0;color:#c4b5d4;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">⚪ 空き</span>
+    </div>
+    <div id="intro-detail" class="info-box" style="margin-top:12px;min-height:36px">👆 セクターをクリックすると詳細が表示されます！</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：ファイルツリー →</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第8章 · Step 1/4</div>
+  <div class="scene-title">📁 フォルダとファイルの木構造</div>
+  <div class="scene-desc">ファイルシステムは<strong>木（ツリー）構造</strong>でファイルを管理する。ルート（/）から始まって枝分かれしていく。クリックしてファイルの情報を見てみよう！</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div class="file-tree" id="file-tree"></div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div id="file-detail" class="inode-box" style="min-height:140px">
+          <div style="color:#9b8db4;font-size:13px;text-align:center;padding:20px">👈 ファイルをクリックすると<br>情報が表示されます</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：inode →</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第8章 · Step 2/4</div>
+  <div class="scene-title">🧾 inode — ファイルの「戸籍」</div>
+  <div class="scene-desc">UNIXのファイルシステムでは、<strong>inode（アイノード）</strong>がファイルのメタデータを管理する。ファイル名とinode番号の対応表がディレクトリ。inode がデータブロックの場所を記録している！</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#0f766e;font-weight:700;margin-bottom:8px">📋 inode #42（hello.txt）</div>
+        <div class="inode-box">
+          <div class="inode-row"><span class="inode-key">ファイルタイプ</span><span class="inode-val">通常ファイル</span></div>
+          <div class="inode-row"><span class="inode-key">サイズ</span><span class="inode-val">1,234 bytes</span></div>
+          <div class="inode-row"><span class="inode-key">作成日時</span><span class="inode-val">2024-01-15 09:30</span></div>
+          <div class="inode-row"><span class="inode-key">パーミッション</span><span class="inode-val">rw-r--r--</span></div>
+          <div class="inode-row"><span class="inode-key">ハードリンク数</span><span class="inode-val">1</span></div>
+          <div class="inode-row"><span class="inode-key">データブロック</span><span class="inode-val">[8, 9, 14]</span></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#0f766e;font-weight:700;margin-bottom:8px">🗂️ データブロック配置</div>
+        <div class="block-chain" id="block-chain"></div>
+        <div class="info-box" style="margin-top:12px">💡 ファイルが大きいと<strong>複数のブロック</strong>に分散して保存される。<br>inode がすべてのブロックの位置を記録している！</div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：SSD vs HDD →</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第8章 · Step 3/4</div>
+  <div class="scene-title">⚡ SSDとHDDの違い</div>
+  <div class="scene-desc">ストレージには2種類ある。<strong>HDD</strong>は磁気ディスクを物理的に回転させて読み書きする。<strong>SSD</strong>は電気的にフラッシュメモリに書き込む。なぜSSDが速いのか確認しよう！</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px;background:#fff8f0;border:2px solid #fde68a;border-radius:12px;padding:16px">
+        <div style="font-size:20px;margin-bottom:6px">💿 HDD</div>
+        <div style="font-size:13px;color:#92400e;line-height:1.8">
+          • 磁気ディスクが物理的に回転<br>
+          • 読み書きヘッドが移動（シーク）<br>
+          • 速度: 100〜200 MB/s<br>
+          • ランダムアクセスが遅い<br>
+          • 大容量・安価<br>
+          • 衝撃に弱い⚠️
+        </div>
+        <div id="hdd-anim" style="margin-top:12px;position:relative;height:80px">
+          <div id="hdd-disk" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;background:conic-gradient(#fbbf24,#d97706,#fbbf24);border:3px solid #d97706;animation:spin 2s linear infinite"></div>
+          <div id="hdd-head" style="position:absolute;left:68%;top:30%;width:20px;height:4px;background:#7c3aed;border-radius:2px;transform-origin:left center"></div>
+        </div>
+        <style>@keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}</style>
+      </div>
+      <div style="flex:1;min-width:180px;background:#f0fdf9;border:2px solid #b2f5ea;border-radius:12px;padding:16px">
+        <div style="font-size:20px;margin-bottom:6px">⚡ SSD（フラッシュメモリ）</div>
+        <div style="font-size:13px;color:#065f46;line-height:1.8">
+          • 電子をNANDセルに蓄える<br>
+          • 可動部品なし！<br>
+          • 速度: 500〜7,000 MB/s<br>
+          • ランダムアクセスも速い<br>
+          • 書き込み回数に上限あり<br>
+          • 衝撃に強い✅
+        </div>
+        <div style="margin-top:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px" id="ssd-grid"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:13px;font-weight:700;color:#0f766e;margin-bottom:6px">📊 読み込み速度比較（100MBのファイル）</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <div style="font-size:12px;color:#6b5f80;margin-bottom:3px">HDD: 100 MB/s → 約1秒</div>
+          <div style="background:#fde68a;height:14px;border-radius:7px;width:20%"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#6b5f80;margin-bottom:3px">SATA SSD: 500 MB/s → 約0.2秒</div>
+          <div style="background:#86efac;height:14px;border-radius:7px;width:60%"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#6b5f80;margin-bottom:3px">NVMe SSD: 7,000 MB/s → 約0.01秒 ⚡</div>
+          <div style="background:#2dd4bf;height:14px;border-radius:7px;width:100%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第8章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#e6fffa,#d1fae5);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. UNIXのファイルシステムでファイルのメタデータを管理するのは？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">📁 ディレクトリ</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">🧾 inode</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">💾 ブートセクタ</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">📋 FAT</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#e6fffa,#d1fae5);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. SSDがHDDより速い最大の理由は？ ⚡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">容量が大きいから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">可動部品がなく電気的に読み書きするから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">接続端子が異なるから</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">冷却ファンがついているから</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第8章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第8章クリア！</h2>
+    <p>ファイルシステムの仕組みと<br>SSD・HDDの違いを学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>ファイルシステムが木構造でファイルを管理</li>
+        <li>inode がファイルのメタデータとブロック位置を記録</li>
+        <li>ファイルは複数のデータブロックに分散して保存</li>
+        <li>SSDは可動部品なしで電気的に高速読み書き</li>
+        <li>NVMe SSDはHDDの70倍以上速い！</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')initFileTree();
+  if(id==='s2')initBlocks();
+  if(id==='s3')initSSD();
+  window.scrollTo(0,0);
+}
+
+// S0: disk
+const diskData=[
+  {type:'meta',label:'SB',desc:'スーパーブロック：ファイルシステム全体の情報'},
+  {type:'meta',label:'iT',desc:'inode テーブル：全ファイルのメタデータを格納'},
+  {type:'dir', label:'/',  desc:'ルートディレクトリ：ファイルシステムの頂点'},
+  {type:'dir', label:'/home',desc:'homeディレクトリ：ユーザーのホームフォルダ'},
+  {type:'used',label:'txt',desc:'hello.txt のデータブロック (ブロック#4)'},
+  {type:'used',label:'txt',desc:'hello.txt のデータブロック (ブロック#5)'},
+  {type:'free',label:'---',desc:'未使用の空きブロック'},
+  {type:'dir', label:'/doc',desc:'Documentsディレクトリ'},
+  {type:'used',label:'img',desc:'photo.jpg のデータブロック (ブロック#8)'},
+  {type:'used',label:'img',desc:'photo.jpg のデータブロック (ブロック#9)'},
+  {type:'free',label:'---',desc:'未使用の空きブロック'},
+  {type:'free',label:'---',desc:'未使用の空きブロック'},
+  {type:'used',label:'mp3',desc:'music.mp3 のデータブロック'},
+  {type:'used',label:'mp3',desc:'music.mp3 のデータブロック'},
+  {type:'used',label:'mp3',desc:'music.mp3 のデータブロック'},
+  {type:'free',label:'---',desc:'未使用の空きブロック'},
+];
+(function(){
+  const disk=document.getElementById('intro-disk');
+  diskData.forEach((d,i)=>{
+    const el=document.createElement('div');
+    el.className='disk-sector '+d.type;
+    el.textContent=d.label;
+    el.title=d.desc;
+    el.onclick=()=>{
+      document.querySelectorAll('.disk-sector').forEach(s=>s.classList.remove('highlight'));
+      el.classList.add('highlight');
+      document.getElementById('intro-detail').innerHTML=`<strong>#${i}</strong> — ${d.desc}`;
+    };
+    disk.appendChild(el);
+  });
+})();
+
+// S1: file tree
+const fileItems=[
+  {depth:0,icon:'💿',name:'/ (ルート)',size:'',info:{type:'ルートディレクトリ',size:'—',inode:'2',blocks:'0',perm:'rwxr-xr-x'}},
+  {depth:1,icon:'📁',name:'home/',size:'',info:{type:'ディレクトリ',size:'4096 B',inode:'5',blocks:'1',perm:'rwxr-xr-x'}},
+  {depth:2,icon:'📁',name:'user/',size:'',info:{type:'ディレクトリ',size:'4096 B',inode:'12',blocks:'1',perm:'rwx------'}},
+  {depth:3,icon:'📄',name:'hello.txt',size:'1.2 KB',info:{type:'通常ファイル',size:'1,234 B',inode:'42',blocks:'1',perm:'rw-r--r--'}},
+  {depth:3,icon:'🖼️',name:'photo.jpg',size:'3.4 MB',info:{type:'通常ファイル',size:'3,407,872 B',inode:'43',blocks:'832',perm:'rw-r--r--'}},
+  {depth:3,icon:'📁',name:'Documents/',size:'',info:{type:'ディレクトリ',size:'4096 B',inode:'44',blocks:'1',perm:'rwxr-xr-x'}},
+  {depth:4,icon:'📄',name:'report.pdf',size:'856 KB',info:{type:'通常ファイル',size:'876,544 B',inode:'101',blocks:'214',perm:'rw-r--r--'}},
+  {depth:1,icon:'📁',name:'usr/',size:'',info:{type:'ディレクトリ',size:'4096 B',inode:'3',blocks:'1',perm:'rwxr-xr-x'}},
+  {depth:1,icon:'📁',name:'tmp/',size:'',info:{type:'ディレクトリ',size:'4096 B',inode:'7',blocks:'1',perm:'rwxrwxrwx'}},
+];
+function initFileTree(){
+  const tree=document.getElementById('file-tree');
+  if(tree.children.length>0)return;
+  fileItems.forEach(item=>{
+    const el=document.createElement('div');
+    el.className='file-item';
+    el.style.paddingLeft=(item.depth*20+8)+'px';
+    el.innerHTML=`<span class="file-icon">${item.icon}</span><span class="file-name">${item.name}</span><span class="file-size">${item.size}</span>`;
+    el.onclick=()=>{
+      document.querySelectorAll('.file-item').forEach(i=>i.classList.remove('selected'));
+      el.classList.add('selected');
+      const d=item.info;
+      document.getElementById('file-detail').innerHTML=`
+        <div style="font-size:12px;color:#0f766e;font-weight:800;margin-bottom:8px">${item.icon} ${item.name}</div>
+        <div class="inode-row"><span class="inode-key">タイプ</span><span class="inode-val">${d.type}</span></div>
+        <div class="inode-row"><span class="inode-key">サイズ</span><span class="inode-val">${d.size}</span></div>
+        <div class="inode-row"><span class="inode-key">inode番号</span><span class="inode-val">${d.inode}</span></div>
+        <div class="inode-row"><span class="inode-key">ブロック数</span><span class="inode-val">${d.blocks}</span></div>
+        <div class="inode-row"><span class="inode-key">パーミッション</span><span class="inode-val">${d.perm}</span></div>
+      `;
+    };
+    tree.appendChild(el);
+  });
+}
+
+// S2: blocks
+function initBlocks(){
+  const chain=document.getElementById('block-chain');
+  if(chain.children.length>0)return;
+  const blocks=['#8\nHello,',null,'#9\n World',null,'#14\n!'];
+  blocks.forEach((b,i)=>{
+    if(b===null){
+      const arr=document.createElement('div'); arr.className='block-arrow'; arr.textContent='→'; chain.appendChild(arr);
+    } else {
+      const node=document.createElement('div'); node.className='block-node';
+      node.innerHTML=b.replace('\n','<br>');
+      node.style.cursor='pointer';
+      node.onclick=()=>{
+        document.querySelectorAll('.block-node').forEach(n=>n.classList.remove('active'));
+        node.classList.add('active');
+      };
+      chain.appendChild(node);
+    }
+  });
+}
+
+// S3: SSD
+function initSSD(){
+  const grid=document.getElementById('ssd-grid');
+  if(grid.children.length>0)return;
+  for(let i=0;i<25;i++){
+    const cell=document.createElement('div');
+    const used=Math.random()>0.4;
+    cell.style.cssText=`height:20px;border-radius:4px;border:1.5px solid;font-size:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;transition:all 0.2s;${used?'background:linear-gradient(135deg,#0f766e,#2dd4bf);border-color:#0f766e;color:white':'background:#f0fdf9;border-color:#b2f5ea;color:#9b8db4'}`;
+    cell.textContent=used?'1':'0';
+    cell.onclick=()=>{
+      const isOne=cell.textContent==='1';
+      cell.textContent=isOne?'0':'1';
+      cell.style.background=isOne?'#f0fdf9':'linear-gradient(135deg,#0f766e,#2dd4bf)';
+      cell.style.color=isOne?'#9b8db4':'white';
+    };
+    grid.appendChild(cell);
+  }
+}
+
+// Quiz
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！inodeがファイルのメタデータ（サイズ・位置・権限）をすべて管理します！':'❌ 不正解。正解は「inode」！ファイルの戸籍票のような存在です。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！可動部品がないので物理的な移動時間がゼロ。だから超高速！':'❌ 不正解。正解は「可動部品がなく電気的に読み書きするから」。HDDはディスクが回転するので時間がかかります。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第6章：ブラウザの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#2563eb;--accent2:#60a5fa;}
+.dom-node{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;cursor:pointer;transition:all 0.2s;line-height:1.8;font-family:monospace;font-size:13px}
+.dom-node:hover{background:#eff6ff}
+.dom-node.sel{background:#dbeafe;border-left:3px solid #2563eb}
+.dom-tag{color:#2563eb;font-weight:800}
+.dom-attr{color:#16a34a;font-weight:700}
+.dom-text{color:#9b8db4;font-style:italic}
+.css-rule{background:white;border:2px solid #e0f2fe;border-radius:10px;padding:10px 14px;font-family:monospace;font-size:13px;margin-bottom:8px;cursor:pointer;transition:all 0.2s}
+.css-rule:hover{border-color:#2563eb}
+.css-rule.applied{border-color:#2563eb;background:#eff6ff}
+.css-sel{color:#e11d48;font-weight:800}
+.css-prop{color:#0891b2;font-weight:700}
+.css-val{color:#16a34a;font-weight:700}
+.layout-area{position:relative;background:#f0f9ff;border:3px solid #bae6fd;border-radius:12px;height:180px;overflow:hidden}
+.layout-box{position:absolute;border:2px solid;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;transition:all 0.5s}
+.pipe-v{background:white;border:2px solid #bae6fd;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;transition:all 0.35s;cursor:pointer;margin-bottom:8px}
+.pipe-v:hover{border-color:#2563eb}
+.pipe-v.active{background:#eff6ff;border-color:#2563eb}
+.pipe-v.done{background:#f0fdf4;border-color:#86efac}
+.pv-icon{font-size:24px}
+.pv-h{font-size:14px;font-weight:800;color:#2d2040}
+.pv-s{font-size:12px;color:#9b8db4}
+.js-btn{padding:10px 18px;border-radius:10px;border:2px solid #bae6fd;background:white;color:#2563eb;font-size:14px;font-weight:800;cursor:pointer;transition:all 0.2s;font-family:inherit}
+.js-btn:hover{background:#eff6ff;border-color:#2563eb}
+.js-log{background:#1e1b2e;border-radius:10px;padding:12px;font-family:monospace;font-size:12px;min-height:80px;max-height:120px;overflow-y:auto;line-height:1.8;color:#e2e0f0}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第6章 · ブラウザの仕組み</div>
+  <div class="scene-title">🌏 URLを入力してからページが見えるまで</div>
+  <div class="scene-desc">ブラウザは<strong>世界で最も複雑なソフトウェアの一つ</strong>！HTMLを受け取ってから画面に表示するまでに何十もの工程がある。重要な4つを体験しよう！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">レンダリングパイプライン — クリックすると説明が出るよ！</div>
+    <div id="pipe-list">
+      <div class="pipe-v" onclick="hlPipe(0)"><span class="pv-icon">📄</span><div><div class="pv-h">HTML解析 → DOMツリー</div><div class="pv-s">HTMLタグを構造化されたツリーに変換</div></div></div>
+      <div class="pipe-v" onclick="hlPipe(1)"><span class="pv-icon">🎨</span><div><div class="pv-h">CSS解析 → スタイル計算</div><div class="pv-s">CSSを解析して各要素のスタイルを決定</div></div></div>
+      <div class="pipe-v" onclick="hlPipe(2)"><span class="pv-icon">📐</span><div><div class="pv-h">レイアウト（リフロー）</div><div class="pv-s">各要素の位置とサイズを計算する</div></div></div>
+      <div class="pipe-v" onclick="hlPipe(3)"><span class="pv-icon">🖌️</span><div><div class="pv-h">ペイント → コンポジット</div><div class="pv-s">ピクセルを実際に描画してレイヤー合成</div></div></div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：HTML解析 📄</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第6章 · Step 1/4</div>
+  <div class="scene-title">📄 Step 1：HTML → DOMツリー</div>
+  <div class="scene-desc">ブラウザはHTMLを上から読み、タグのネスト関係を<strong>DOM（Document Object Model）ツリー</strong>として構築する。JavaScriptはこのツリーを操作する！</div>
+  <div class="stage">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#2563eb;font-weight:800;margin-bottom:6px">📝 入力HTML</div>
+        <div style="background:#1e1b2e;border-radius:10px;padding:12px;font-family:monospace;font-size:12px;color:#e2e0f0;line-height:1.9">
+          <span style="color:#60a5fa">&lt;html&gt;</span><br>
+          &nbsp;&nbsp;<span style="color:#60a5fa">&lt;head&gt;</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#60a5fa">&lt;title&gt;</span><span style="color:#86efac">CS</span><span style="color:#60a5fa">&lt;/title&gt;</span><br>
+          &nbsp;&nbsp;<span style="color:#60a5fa">&lt;/head&gt;</span><br>
+          &nbsp;&nbsp;<span style="color:#60a5fa">&lt;body&gt;</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#60a5fa">&lt;h1 </span><span style="color:#86efac">id="t"</span><span style="color:#60a5fa">&gt;</span>Hello<span style="color:#60a5fa">&lt;/h1&gt;</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#60a5fa">&lt;p&gt;</span>World<span style="color:#60a5fa">&lt;/p&gt;</span><br>
+          &nbsp;&nbsp;<span style="color:#60a5fa">&lt;/body&gt;</span><br>
+          <span style="color:#60a5fa">&lt;/html&gt;</span>
+        </div>
+      </div>
+      <div style="font-size:24px;color:#2563eb;align-self:center;font-weight:900">→</div>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#2563eb;font-weight:800;margin-bottom:6px">🌳 DOMツリー（クリックで詳細！）</div>
+        <div id="dom-tree"></div>
+        <div id="dom-detail" class="info-box" style="margin-top:8px;min-height:36px;font-family:monospace;font-size:12px">👆 ノードをクリックしてください</div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：CSS適用 🎨</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第6章 · Step 2/4</div>
+  <div class="scene-title">🎨 Step 2：CSSはどうやって要素に「当たる」のか</div>
+  <div class="scene-desc">CSSルールはセレクタで対象を絞る。ブラウザは全ルールを当たって<strong>特異度（Specificity）</strong>と順番で優先度を決め、最終的なスタイルを計算する！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">👆 ルールをクリックして「h1#t」への影響を確認！</div>
+    <div id="css-rules">
+      <div class="css-rule" onclick="applyCSS(0)"><span class="css-sel">*</span> { <span class="css-prop">color</span>: <span class="css-val">black</span>; } <span style="color:#9b8db4;font-size:11px">— 全要素 (特異度:0)</span></div>
+      <div class="css-rule" onclick="applyCSS(1)"><span class="css-sel">h1</span> { <span class="css-prop">font-size</span>: <span class="css-val">32px</span>; } <span style="color:#9b8db4;font-size:11px">— タグ名 (特異度:1)</span></div>
+      <div class="css-rule" onclick="applyCSS(2)"><span class="css-sel">#t</span> { <span class="css-prop">color</span>: <span class="css-val">#2563eb</span>; } <span style="color:#9b8db4;font-size:11px">— ID (特異度:100) ← 最強！</span></div>
+      <div class="css-rule" onclick="applyCSS(3)"><span class="css-sel">.hl</span> { <span class="css-prop">background</span>: <span class="css-val">yellow</span>; } <span style="color:#9b8db4;font-size:11px">— クラス (特異度:10)</span></div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:#2563eb;margin-top:12px;margin-bottom:6px">h1#t に適用された最終スタイル：</div>
+    <div id="computed-st" class="info-box" style="font-family:monospace;min-height:44px"></div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：レイアウト 📐</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第6章 · Step 3/4</div>
+  <div class="scene-title">📐 Step 3：レイアウト — 各要素の位置を計算する</div>
+  <div class="scene-desc">スタイルが決まったら、ブラウザは各要素の<strong>ボックスモデル</strong>（margin/border/padding/content）に従い、ページ全体の座標を計算する — これが<strong>レイアウト</strong>！</div>
+  <div class="stage">
+    <button class="btn-action" style="margin-bottom:12px" onclick="animLayout()">▶ レイアウト計算！</button>
+    <div class="layout-area" id="layout-area"></div>
+    <div id="layout-info" class="info-box" style="margin-top:10px;font-family:monospace;font-size:12px;min-height:36px">ボタンを押してレイアウト計算を見よう！</div>
+    <div class="info-box" style="margin-top:8px">💡 CSSを変えると再レイアウト（<strong>リフロー</strong>）が起きる。<br>JSで要素の幅を1000回読み書きすると<strong>レイアウトスラッシング</strong>でページが重くなる！</div>
+  </div>
+  <button class="btn-next" onclick="go('s4')">Step 4：JavaScript実行 ⚡</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第6章 · Step 4/4</div>
+  <div class="scene-title">⚡ Step 4：JavaScriptとDOMの動的操作</div>
+  <div class="scene-desc">JavaScriptエンジン（V8など）がコードを実行し、<strong>DOMツリーを操作</strong>することでページを変える。変更があるとブラウザが自動的に再描画する！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">ボタンをクリック → JSが実行 → DOMが変わる → 再描画！</div>
+    <div id="js-target" style="padding:16px;background:white;border:2px solid #bae6fd;border-radius:12px;font-size:16px;font-weight:700;margin-bottom:12px;text-align:center;transition:all 0.3s;min-height:60px;display:flex;align-items:center;justify-content:center">Hello, World! 🌍</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <button class="js-btn" onclick="jsDemo('color')">🎨 色を変える</button>
+      <button class="js-btn" onclick="jsDemo('text')">✏️ テキスト変更</button>
+      <button class="js-btn" onclick="jsDemo('anim')">✨ アニメ</button>
+      <button class="js-btn" onclick="jsDemo('add')">➕ 要素を追加</button>
+    </div>
+    <div class="js-log" id="js-log">// JS実行ログ</div>
+    <div class="info-box" style="margin-top:10px">💡 DOMの変更 → <strong>再レイアウト → 再ペイント</strong>という流れ。<br>React/Vueなどは<strong>仮想DOM</strong>で変更を最小限にして高速化している！</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第6章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. HTMLを構造化されたツリーに変換したものを何という？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">APIツリー</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">DOMツリー</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">CSSツリー</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">レンダーツリー</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. CSSで最も「特異度」が高いセレクタは？ 💡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">タグ名（h1）</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">クラス（.foo）</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">ID（#bar）</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">全称（*）</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第6章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第6章クリア！</h2>
+    <p>URLからピクセルまで、<br>ブラウザの全工程を学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>HTMLを解析してDOMツリーを構築</li>
+        <li>CSSは特異度で優先順位が決まる</li>
+        <li>レイアウトで各要素の座標とサイズを計算</li>
+        <li>ペイントでピクセルに描画される</li>
+        <li>JSがDOMを操作すると再レイアウト・再描画</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s1')buildDOM();
+  window.scrollTo(0,0);
+}
+function hlPipe(i){
+  document.querySelectorAll('.pipe-v').forEach((el,j)=>{el.classList.remove('active','done');if(j<i)el.classList.add('done');if(j===i)el.classList.add('active');});
+}
+const domData=[
+  {depth:0,html:'<span class="dom-tag">&lt;html&gt;</span>',info:'ルート要素。すべての要素の親'},
+  {depth:1,html:'<span class="dom-tag">&lt;head&gt;</span>',info:'メタ情報を格納するセクション'},
+  {depth:2,html:'<span class="dom-tag">&lt;title&gt;</span> <span class="dom-text">"CS"</span>',info:'ページのタイトル（タブに表示）'},
+  {depth:1,html:'<span class="dom-tag">&lt;body&gt;</span>',info:'表示コンテンツを格納するセクション'},
+  {depth:2,html:'<span class="dom-tag">&lt;h1</span> <span class="dom-attr">id="t"</span><span class="dom-tag">&gt;</span> <span class="dom-text">"Hello"</span>',info:'見出し要素。id="t"という属性を持つ'},
+  {depth:2,html:'<span class="dom-tag">&lt;p&gt;</span> <span class="dom-text">"World"</span>',info:'段落要素'},
+];
+function buildDOM(){
+  const el=document.getElementById('dom-tree');if(el.children.length)return;
+  domData.forEach(n=>{
+    const row=document.createElement('div');row.className='dom-node';
+    row.style.paddingLeft=(n.depth*20+8)+'px';
+    row.innerHTML=n.html;
+    row.onclick=()=>{document.querySelectorAll('.dom-node').forEach(r=>r.classList.remove('sel'));row.classList.add('sel');document.getElementById('dom-detail').innerHTML=`${n.html} — <span style="color:#9b8db4">${n.info}</span>`;};
+    el.appendChild(row);
+  });
+}
+const computedSt={};
+function applyCSS(i){
+  document.querySelectorAll('.css-rule').forEach(r=>r.classList.remove('applied'));
+  document.querySelectorAll('.css-rule')[i].classList.add('applied');
+  const styles=[{color:'black'},{'font-size':'32px'},{color:'#2563eb'},{background:'yellow'}];
+  Object.assign(computedSt,styles[i]);
+  document.getElementById('computed-st').innerHTML=Object.entries(computedSt).map(([k,v])=>`<span style="color:#0891b2">${k}</span>: <span style="color:#16a34a">${v}</span>;`).join('&nbsp;&nbsp;');
+}
+let layoutDone=false;
+const layoutBoxes=[
+  {label:'&lt;html&gt;',x:1,y:1,w:98,h:96,color:'#9333ea',info:'html: x=0, y=0, w=100%, h=auto'},
+  {label:'&lt;body&gt;',x:3,y:4,w:94,h:90,color:'#2563eb',info:'body: x=8px, y=8px, w=calc(100%-16px)'},
+  {label:'&lt;h1&gt;',x:5,y:6,w:90,h:30,color:'#e11d48',info:'h1: x=8px, y=8px, w=100%, h=40px'},
+  {label:'&lt;p&gt;',x:5,y:40,w:90,h:22,color:'#16a34a',info:'p: x=8px, y=56px, w=100%, h=24px'},
+];
+function animLayout(){
+  if(layoutDone)return;layoutDone=true;
+  const area=document.getElementById('layout-area');
+  const info=document.getElementById('layout-info');
+  layoutBoxes.forEach((b,i)=>{
+    setTimeout(()=>{
+      const el=document.createElement('div');el.className='layout-box';
+      el.style=`left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;border-color:${b.color};color:${b.color}`;
+      el.innerHTML=b.label;area.appendChild(el);
+      info.innerHTML=`<span style="color:#2563eb">計算中:</span> ${b.info}`;
+    },i*550);
+  });
+}
+const jsColors=['#2563eb','#e11d48','#16a34a','#d97706','#9333ea'];
+let jsCi=0,jsAdded=0;
+function log(msg,color='#60a5fa'){const l=document.getElementById('js-log');const d=document.createElement('div');d.style.color=color;d.textContent=msg;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function jsDemo(action){
+  const el=document.getElementById('js-target');
+  if(action==='color'){
+    const c=jsColors[jsCi%jsColors.length];jsCi++;
+    el.style.color=c;el.style.borderColor=c;
+    log(`element.style.color = '${c}'`);log('→ 再ペイント発生','#4ade80');
+  }else if(action==='text'){
+    const texts=['Hello, World! 🌍','CS Adventure! 🚀','ブラウザの魔法✨','DOM操作！⚡'];
+    el.textContent=texts[Math.floor(Math.random()*texts.length)];
+    log(`element.textContent = '${el.textContent}'`);log('→ 再レイアウト → 再ペイント','#4ade80');
+  }else if(action==='anim'){
+    el.style.transform='scale(1.1) rotate(3deg)';setTimeout(()=>el.style.transform='',450);
+    log(`element.style.transform = 'scale(1.1) rotate(3deg)'`);log('→ GPUコンポジット処理（高速！）','#4ade80');
+  }else if(action==='add'){
+    jsAdded++;const newEl=document.createElement('div');
+    newEl.style='margin-top:6px;padding:4px 10px;background:#eff6ff;border-radius:6px;font-size:12px;font-weight:700;color:#2563eb';
+    newEl.textContent=`✨ 追加要素 ${jsAdded}`;el.appendChild(newEl);
+    log(`element.appendChild(div) — 要素${jsAdded}を追加`);log('→ DOMツリー変更 → 再レイアウト','#4ade80');
+  }
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！DOM（Document Object Model）ツリーです！JSから操作できるHTMLの内部表現。':'❌ 不正解。正解は「DOMツリー」！';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！ID（特異度:100）> クラス（10）> タグ（1）> 全称（0）です！':'❌ 不正解。正解は「ID（#bar）」！特異度は ID=100, class=10, tag=1 の順です。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>

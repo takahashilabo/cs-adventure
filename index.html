@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS Adventure 🚀 コンピュータの謎を解く旅</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.hero { text-align: center; padding: 48px 20px 32px; }
+.hero-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #a78bfa, #f472b6);
+  color: white;
+  font-size: 12px; font-weight: 800; letter-spacing: 2px;
+  padding: 5px 16px; border-radius: 20px;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+.hero-title {
+  font-size: 48px; font-weight: 900; line-height: 1.15;
+  background: linear-gradient(135deg, #7c3aed, #ec4899, #f97316);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 14px;
+}
+.hero-sub {
+  font-size: 16px; color: #6b5f80; line-height: 1.8;
+  max-width: 480px; margin: 0 auto 36px;
+}
+.hero-emoji { font-size: 56px; display: block; margin-bottom: 8px; animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+.section-label {
+  font-size: 13px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: #a78bfa;
+  margin: 8px 20px 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-label::after { content:''; flex:1; height:1.5px; background:linear-gradient(90deg,#e2ddf0,transparent); }
+
+.chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  padding: 0 20px 20px;
+}
+
+.chapter-card {
+  background: white;
+  border-radius: 20px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(100,80,200,0.10);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.25s cubic-bezier(.34,1.56,.64,1);
+  display: block;
+  border: 2px solid transparent;
+}
+.chapter-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 36px rgba(100,80,200,0.18);
+  border-color: var(--ch-color, #a78bfa);
+}
+.card-header {
+  background: linear-gradient(135deg, var(--ch-color, #a78bfa), var(--ch-color2, #f472b6));
+  padding: 20px 20px 16px;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.card-icon { font-size: 32px; line-height: 1; }
+.card-num { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: rgba(255,255,255,0.8); text-transform: uppercase; margin-bottom: 2px; }
+.card-title { font-size: 17px; font-weight: 900; color: white; line-height: 1.3; }
+.card-body { padding: 14px 18px 18px; }
+.card-desc { font-size: 13px; color: #6b5f80; line-height: 1.7; margin-bottom: 12px; }
+.card-footer { display: flex; align-items: center; justify-content: space-between; }
+.card-scenes { font-size: 11px; color: #a094b4; font-weight: 700; }
+.card-start {
+  background: linear-gradient(135deg, var(--ch-color, #a78bfa), var(--ch-color2, #f472b6));
+  color: white; font-size: 12px; font-weight: 800;
+  padding: 5px 14px; border-radius: 20px;
+}
+
+.coming-card {
+  background: white;
+  border-radius: 20px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(100,80,200,0.06);
+  opacity: 0.55;
+  border: 2px dashed #e2ddf0;
+}
+.coming-card .card-header {
+  background: linear-gradient(135deg, #c4b5d4, #d4b5c4);
+}
+.coming-card .card-start { background: #d4c5e4; }
+
+.footer-note {
+  text-align: center;
+  padding: 24px 20px 48px;
+  font-size: 13px;
+  color: #a094b4;
+  line-height: 1.8;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hero">
+    <span class="hero-emoji">🚀</span>
+    <div class="hero-badge">🎓 無料で学べる教育コンテンツ</div>
+    <h1 class="hero-title">CS Adventure</h1>
+    <p class="hero-sub">コンピュータの謎を、体験しながら解き明かそう。<br>クリックするだけで、仕組みが見えてくる！</p>
+  </div>
+
+  <div class="section-label">📖 公開中のチャプター</div>
+  <div class="chapter-grid">
+
+    <a class="chapter-card" href="chapter1.html" style="--ch-color:#7c3aed;--ch-color2:#a78bfa">
+      <div class="card-header">
+        <span class="card-icon">⚙️</span>
+        <div><div class="card-num">第1章</div><div class="card-title">プログラムの旅</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">ソースコードがCPUで動くまで — コンパイル・メモリ・フェッチサイクルの全工程</div>
+        <div class="card-footer"><span class="card-scenes">📚 5シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter2.html" style="--ch-color:#e11d48;--ch-color2:#f472b6">
+      <div class="card-header">
+        <span class="card-icon">⌨️</span>
+        <div><div class="card-num">第2章</div><div class="card-title">キーボードの秘密</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">物理スイッチ→マトリクス→スキャンコード→OSイベント。キー入力の旅</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter3.html" style="--ch-color:#0891b2;--ch-color2:#22d3ee">
+      <div class="card-header">
+        <span class="card-icon">🖥️</span>
+        <div><div class="card-num">第3章</div><div class="card-title">ディスプレイの魔法</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">RGB・フレームバッファ・フォントレンダリング・リフレッシュレートの仕組み</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter4.html" style="--ch-color:#d97706;--ch-color2:#fb923c">
+      <div class="card-header">
+        <span class="card-icon">🌐</span>
+        <div><div class="card-num">第4章</div><div class="card-title">ネットワークの旅</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">パケット・IPルーティング・TCPハンドシェイク・HTTP。データが届く仕組み</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter5.html" style="--ch-color:#16a34a;--ch-color2:#4ade80">
+      <div class="card-header">
+        <span class="card-icon">📝</span>
+        <div><div class="card-num">第5章</div><div class="card-title">テキストエディタの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">Gap Buffer・Undo/Redoスタック・シンタックスハイライト。エディタの裏側</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter6.html" style="--ch-color:#2563eb;--ch-color2:#60a5fa">
+      <div class="card-header">
+        <span class="card-icon">🌏</span>
+        <div><div class="card-num">第6章</div><div class="card-title">ブラウザの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">HTML解析→DOM→CSS→レイアウト→ペイント。レンダリングパイプラインの旅</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter7.html" style="--ch-color:#7c3aed;--ch-color2:#c084fc">
+      <div class="card-header">
+        <span class="card-icon">🔊</span>
+        <div><div class="card-num">第7章</div><div class="card-title">音の仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">音波・サンプリング・ビット深度・DAC・スピーカー。デジタル音声の全工程</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter8.html" style="--ch-color:#0f766e;--ch-color2:#2dd4bf">
+      <div class="card-header">
+        <span class="card-icon">💾</span>
+        <div><div class="card-num">第8章</div><div class="card-title">ファイルシステムの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">ファイルはどこに？HDD・SSD・inode・FAT。ストレージの中身を探索</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter9.html" style="--ch-color:#dc2626;--ch-color2:#f87171">
+      <div class="card-header">
+        <span class="card-icon">🔐</span>
+        <div><div class="card-num">第9章</div><div class="card-title">暗号とHTTPSの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">シーザー暗号→RSA→TLS。なぜネット通信は安全なのか謎を解く</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter10.html" style="--ch-color:#0369a1;--ch-color2:#38bdf8">
+      <div class="card-header">
+        <span class="card-icon">🧠</span>
+        <div><div class="card-num">第10章</div><div class="card-title">OSとプロセスの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">プロセス・スレッド・スケジューリング・仮想メモリ。OSが複数アプリを管理する方法</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter11.html" style="--ch-color:#9333ea;--ch-color2:#e879f9">
+      <div class="card-header">
+        <span class="card-icon">🗄️</span>
+        <div><div class="card-num">第11章</div><div class="card-title">データベースの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">SQL・インデックス・トランザクション・B木。データを速く探せる理由</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+    <a class="chapter-card" href="chapter12.html" style="--ch-color:#b45309;--ch-color2:#fbbf24">
+      <div class="card-header">
+        <span class="card-icon">🎮</span>
+        <div><div class="card-num">第12章</div><div class="card-title">GPUとグラフィックスの仕組み</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc">3Dゲームの裏側 — 頂点・シェーダー・ラスタライズ。GPUが並列処理する秘密</div>
+        <div class="card-footer"><span class="card-scenes">📚 4シーン + クイズ</span><span class="card-start">START →</span></div>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="section-label" style="margin-top:8px">🔜 近日公開</div>
+  <div class="chapter-grid">
+    <div class="coming-card">
+      <div class="card-header"><span class="card-icon">⚡</span><div><div class="card-num">第13章（準備中）</div><div class="card-title">キャッシュとメモリ階層</div></div></div>
+      <div class="card-body"><div class="card-desc">L1/L2/L3キャッシュ・局所性・キャッシュミスの仕組み</div><div class="card-footer"><span class="card-scenes">準備中</span><span class="card-start">COMING SOON</span></div></div>
+    </div>
+    <div class="coming-card">
+      <div class="card-header"><span class="card-icon">🤖</span><div><div class="card-num">第14章（準備中）</div><div class="card-title">機械学習の仕組み</div></div></div>
+      <div class="card-body"><div class="card-desc">ニューラルネット・誤差逆伝播・重みの更新を視覚的に体験</div><div class="card-footer"><span class="card-scenes">準備中</span><span class="card-start">COMING SOON</span></div></div>
+    </div>
+    <div class="coming-card">
+      <div class="card-header"><span class="card-icon">🐧</span><div><div class="card-num">第15章（準備中）</div><div class="card-title">Linuxコマンドの世界</div></div></div>
+      <div class="card-body"><div class="card-desc">シェル・パイプ・プロセス置換。ターミナルが怖くなくなる</div><div class="card-footer"><span class="card-scenes">準備中</span><span class="card-start">COMING SOON</span></div></div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    ✨ CS Adventure は誰でも無料で学べる教育コンテンツです<br>
+    体験しながら「なぜ？」を解き明かそう 🚀
+  </div>
+</div>
+</body>
+</html>

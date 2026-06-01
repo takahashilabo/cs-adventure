@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第4章：ネットワークの旅 — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#d97706;--accent2:#fb923c;}
+.net-map{position:relative;min-height:200px;background:#fffbeb;border-radius:12px;overflow:hidden}
+.net-node{position:absolute;width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:9px;font-weight:800;border:2px solid;cursor:pointer;transition:all 0.3s;z-index:2}
+.net-node.device{background:white;border-color:#bae6fd;color:#0369a1}
+.net-node.router{background:#fffbeb;border-color:#d97706;color:#d97706}
+.net-node.server{background:#faf5ff;border-color:#9333ea;color:#9333ea}
+.net-node:hover{transform:scale(1.1)}
+.n-icon{font-size:20px}
+.net-edge{position:absolute;background:#fde68a;transform-origin:0 50%;height:3px;z-index:1;border-radius:2px}
+.pkt{position:absolute;width:28px;height:20px;background:linear-gradient(135deg,#d97706,#fb923c);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:800;z-index:5;transition:top 0.45s ease,left 0.45s ease;box-shadow:0 2px 8px rgba(217,119,6,0.4)}
+.pkt-struct{display:flex;border-radius:10px;overflow:hidden;border:2px solid #fde68a}
+.pkt-part{display:flex;align-items:center;justify-content:center;padding:10px;font-size:12px;font-weight:800;flex-direction:column;gap:2px}
+.pkt-eth{background:#fef3c7;color:#d97706;flex:2}
+.pkt-ip{background:#e0f2fe;color:#0369a1;flex:3}
+.pkt-tcp{background:#faf5ff;color:#9333ea;flex:2}
+.pkt-data{background:#f0fdf4;color:#16a34a;flex:4}
+.pkt-sub{font-size:9px;font-weight:400;opacity:0.7}
+.hs-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.hs-msg{background:white;border:2px solid #fde68a;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;width:100%;text-align:center;opacity:0;transition:opacity 0.4s;color:#2d2040}
+.hs-msg.show{opacity:1}
+.hs-arr{font-size:22px;opacity:0;transition:opacity 0.4s;color:#d97706;font-weight:900}
+.hs-arr.show{opacity:1}
+.http-box{background:#1e1b2e;border-radius:10px;padding:12px;font-family:monospace;font-size:12px;line-height:1.9;margin-bottom:8px;color:#e2e0f0}
+.http-method{color:#fb923c;font-weight:900}
+.http-hk{color:#60a5fa}
+.http-hv{color:#86efac}
+.http-status{color:#4ade80;font-weight:900}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第4章 · ネットワークの旅</div>
+  <div class="scene-title">🌐 データはどうやって世界中を旅するの？</div>
+  <div class="scene-desc">「送信」を押した瞬間、データはインターネットを旅して相手に届く。<strong>パケット・IP・TCP・HTTP</strong>という4つの層が連携して「届ける」を実現している！ノードをクリックして旅を始めよう🚀</div>
+  <div class="stage">
+    <div class="net-map" id="intro-map"></div>
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-top:8px;text-align:center">👆 ノードをクリックしてパケットを送ろう！</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：パケット分割 📦</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第4章 · Step 1/4</div>
+  <div class="scene-title">📦 Step 1：大きなデータを「小包」に分ける</div>
+  <div class="scene-desc">巨大なファイルを一度に送ると回線を独占してしまう。インターネットでは<strong>パケット</strong>という小さな単位に分割して送る。各パケットは別々の経路を通っても良く、宛先で組み立て直される！</div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">「Hello! 🌏」を送信すると…</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div style="padding:10px 16px;background:white;border:2px solid #fde68a;border-radius:10px;font-family:monospace;font-size:15px;font-weight:800;color:#d97706">"Hello! 🌏"</div>
+      <div style="color:#d97706;font-size:22px;font-weight:900" id="split-arr" style="opacity:0">→</div>
+      <div id="packets-out" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+    <button class="btn-action" onclick="splitPkts()" style="margin-bottom:14px">▶ パケットに分割！</button>
+    <div style="font-size:13px;font-weight:800;color:#d97706;margin-bottom:8px">📦 パケットの構造</div>
+    <div class="pkt-struct">
+      <div class="pkt-part pkt-eth">MAC<div class="pkt-sub">イーサネット</div></div>
+      <div class="pkt-part pkt-ip">IPアドレス<div class="pkt-sub">送受信先</div></div>
+      <div class="pkt-part pkt-tcp">Port:443<div class="pkt-sub">TCP制御</div></div>
+      <div class="pkt-part pkt-data">データ本体<div class="pkt-sub">最大1460B</div></div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 1パケットのデータ部分は最大約<strong>1460バイト</strong>。<br>1GBのファイルは約70万個のパケットに分割される！</div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：IPルーティング 🗺️</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第4章 · Step 2/4</div>
+  <div class="scene-title">🗺️ Step 2：パケットはどうやって目的地を見つける？</div>
+  <div class="scene-desc">各デバイスには<strong>IPアドレス</strong>という住所がある。パケットは次のルーターに「この住所に近い方向はどっちだ？」と聞きながら進む — これが<strong>ルーティング</strong>！</div>
+  <div class="stage">
+    <div class="net-map" id="route-map" style="min-height:240px"></div>
+    <button class="btn-action" style="margin-top:10px" onclick="startRoute()">▶ パケットを送る！</button>
+    <div id="route-log" class="info-box" style="margin-top:10px;min-height:36px;font-family:monospace;font-size:12px">ボタンを押してパケットの旅を見よう！</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：TCP 🤝</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第4章 · Step 3/4</div>
+  <div class="scene-title">🤝 Step 3：TCP — 「届いた？」を確認しながら送る</div>
+  <div class="scene-desc"><strong>TCP</strong>は①まず接続を確立（3ウェイハンドシェイク）し、②届いたら確認応答（ACK）を返すことで確実な通信を保証する！ボタンで流れを確認しよう。</div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:flex-start">
+      <div class="hs-side">
+        <div style="font-weight:800;font-size:14px;color:#0369a1;margin-bottom:8px">💻 クライアント</div>
+        <div class="hs-msg" id="c1">SYN送信<br><small style="font-weight:400;color:#9b8db4">「繋げていい？」</small></div>
+        <div class="hs-msg" id="c2" style="margin-top:8px">SYN-ACK受信<br><small style="font-weight:400;color:#9b8db4">「OK来た！」</small></div>
+        <div class="hs-msg" id="c3" style="margin-top:8px">ACK送信<br><small style="font-weight:400;color:#9b8db4">「接続完了！」</small></div>
+        <div class="hs-msg" id="c4" style="margin-top:8px;border-color:#86efac;color:#16a34a">🚀 データ送信開始！</div>
+      </div>
+      <div style="flex:0 0 60px;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:36px">
+        <div class="hs-arr" id="a1">→</div>
+        <div class="hs-arr" id="a2">←</div>
+        <div class="hs-arr" id="a3">→</div>
+        <div class="hs-arr" id="a4">→→</div>
+      </div>
+      <div class="hs-side">
+        <div style="font-weight:800;font-size:14px;color:#9333ea;margin-bottom:8px">🖥️ サーバー</div>
+        <div class="hs-msg" id="s1">SYN受信<br><small style="font-weight:400;color:#9b8db4">「要求来た」</small></div>
+        <div class="hs-msg" id="s2" style="margin-top:8px">SYN-ACK送信<br><small style="font-weight:400;color:#9b8db4">「どうぞ！」</small></div>
+        <div class="hs-msg" id="s3" style="margin-top:8px">ACK受信<br><small style="font-weight:400;color:#9b8db4">「確立！」</small></div>
+        <div class="hs-msg" id="s4" style="margin-top:8px;border-color:#86efac;color:#16a34a">📬 受信待ち！</div>
+      </div>
+    </div>
+    <button class="btn-action" style="margin-top:14px" onclick="startHS()">▶ 3ウェイハンドシェイク！</button>
+  </div>
+  <button class="btn-next" onclick="go('s4')">Step 4：HTTP 🌐</button>
+</div>
+
+<div class="scene" id="s4">
+  <div class="chapter-label">第4章 · Step 4/4</div>
+  <div class="scene-title">🌐 Step 4：HTTP — ブラウザとサーバーの会話</div>
+  <div class="scene-desc">TCPで接続が確立したら<strong>HTTP</strong>でやり取りする。ブラウザが「このページをください」と<strong>リクエスト</strong>、サーバーが「どうぞ」と<strong>レスポンス</strong>を返す！</div>
+  <div class="stage">
+    <button class="btn-action" style="margin-bottom:12px" onclick="simHTTP()">▶ example.com にアクセス！</button>
+    <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:5px">📤 HTTPリクエスト（ブラウザ → サーバー）</div>
+    <div class="http-box" id="http-req" style="min-height:70px"></div>
+    <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:5px">📥 HTTPレスポンス（サーバー → ブラウザ）</div>
+    <div class="http-box" id="http-res" style="min-height:70px"></div>
+    <div class="info-box">💡 現在主流の<strong>HTTP/2, HTTP/3</strong>は1つの接続で複数リクエストを並行処理。<br>HTTPSではTLSで全通信が暗号化される！</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第4章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. インターネットでデータを小さく分割した単位を何という？ 📦</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">フレーム</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">パケット</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">バイト</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">セグメント</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. TCPの「3ウェイハンドシェイク」の目的は？ 🤝</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">データを暗号化する</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">パケットを分割する</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">接続を確立してから通信を始める</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">IPアドレスを割り当てる</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第4章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第4章クリア！</h2>
+    <p>パケットがどうやって世界を旅して<br>確実に届くのかを学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>データはパケットに分割されて送られる</li>
+        <li>各パケットにはIPヘッダで宛先が書かれる</li>
+        <li>ルーターが最適経路にパケットを転送する</li>
+        <li>TCPが順序・再送で確実な配送を保証</li>
+        <li>HTTPでブラウザとサーバーが会話する</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','s4','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s0')initIntroMap();
+  if(id==='s2')initRouteMap();
+  window.scrollTo(0,0);
+}
+function initIntroMap(){
+  const map=document.getElementById('intro-map');
+  if(map.children.length)return;
+  const nodes=[{id:'pc',l:'💻 あなた',x:5,y:35,cls:'device'},{id:'r1',l:'📡 GW',x:30,y:15,cls:'router'},{id:'r2',l:'🔀 R1',x:55,y:50,cls:'router'},{id:'sv',l:'🖥️ Server',x:80,y:25,cls:'server'}];
+  const edges=[[0,1],[1,2],[2,3],[1,3]];
+  edges.forEach(([a,b])=>{
+    const na=nodes[a],nb=nodes[b];
+    const x1=na.x/100*340+28,y1=na.y/100*160+28;
+    const x2=nb.x/100*340+28,y2=nb.y/100*160+28;
+    const len=Math.hypot(x2-x1,y2-y1);
+    const angle=Math.atan2(y2-y1,x2-x1)*180/Math.PI;
+    const el=document.createElement('div');el.className='net-edge';
+    el.style=`left:${x1}px;top:${y1}px;width:${len}px;transform:rotate(${angle}deg)`;
+    map.appendChild(el);
+  });
+  nodes.forEach(n=>{
+    const el=document.createElement('div');el.className='net-node '+n.cls;
+    el.style=`left:calc(${n.x}% - 28px);top:calc(${n.y}% - 28px)`;
+    el.innerHTML=`<span class="n-icon">${n.l.split(' ')[0]}</span><span style="font-size:9px">${n.l.split(' ')[1]||''}</span>`;
+    el.onclick=()=>sendPktIntro(el,nodes,map);
+    map.appendChild(el);
+  });
+  map.style.height='180px';
+}
+function sendPktIntro(from,nodes,map){
+  const pkt=document.createElement('div');pkt.className='pkt';pkt.textContent='PKT';
+  pkt.style.left=from.offsetLeft+'px';pkt.style.top=from.offsetTop+'px';
+  map.appendChild(pkt);
+  const targets=nodes.filter(n=>n.cls!=='device');
+  let i=0;
+  function step(){
+    if(i>=targets.length){setTimeout(()=>pkt.remove(),300);return;}
+    const t=targets[i++];
+    pkt.style.left=(t.x/100*340+14)+'px';pkt.style.top=(t.y/100*160+18)+'px';
+    setTimeout(step,550);
+  }
+  step();
+}
+function splitPkts(){
+  const out=document.getElementById('packets-out');
+  document.getElementById('split-arr').style.opacity='1';
+  out.innerHTML='';
+  ['He','ll','o!',' 🌏'].forEach((p,i)=>{
+    setTimeout(()=>{
+      const el=document.createElement('div');
+      el.style=`background:linear-gradient(135deg,#d97706,#fb923c);color:white;border-radius:8px;padding:6px 12px;font-family:monospace;font-size:13px;font-weight:800;box-shadow:0 2px 8px rgba(217,119,6,0.3)`;
+      el.textContent=`P${i+1}:"${p}"`;out.appendChild(el);
+    },i*180);
+  });
+}
+const routeNodes=[{l:'💻',x:4,y:45,cls:'device'},{l:'📡',x:24,y:45,cls:'router'},{l:'🔀',x:44,y:20,cls:'router'},{l:'🔀',x:44,y:70,cls:'router'},{l:'🔀',x:67,y:45,cls:'router'},{l:'🖥️',x:87,y:45,cls:'server'}];
+const routeEdges=[[0,1],[1,2],[1,3],[2,4],[3,4],[4,5]];
+const routePath=[0,1,2,4,5];
+const routeMsgs=['📤 出発！','📡 ゲートウェイ通過','🔀 R1を選択','🔀 R3に転送','🖥️ 到着！'];
+function initRouteMap(){
+  const map=document.getElementById('route-map');
+  if(map.children.length)return;
+  map.style.height='240px';
+  routeEdges.forEach(([a,b])=>{
+    const na=routeNodes[a],nb=routeNodes[b];
+    const x1=na.x/100*600+28,y1=na.y/100*200+28;
+    const x2=nb.x/100*600+28,y2=nb.y/100*200+28;
+    const len=Math.hypot(x2-x1,y2-y1);
+    const angle=Math.atan2(y2-y1,x2-x1)*180/Math.PI;
+    const el=document.createElement('div');el.className='net-edge';el.style=`left:${x1}px;top:${y1}px;width:${len}px;transform:rotate(${angle}deg)`;
+    map.appendChild(el);
+  });
+  routeNodes.forEach((n,i)=>{
+    const el=document.createElement('div');el.className='net-node '+n.cls;el.id='rn'+i;
+    el.style=`left:calc(${n.x}% - 28px);top:calc(${n.y}% - 28px);width:56px;height:56px;font-size:24px`;
+    el.textContent=n.l;map.appendChild(el);
+  });
+}
+let routeRunning=false;
+function startRoute(){
+  if(routeRunning)return;routeRunning=true;
+  const map=document.getElementById('route-map');
+  const log=document.getElementById('route-log');
+  const pkt=document.createElement('div');pkt.className='pkt';pkt.textContent='PKT';map.appendChild(pkt);
+  let step=0;
+  function next(){
+    if(step>=routePath.length){setTimeout(()=>{pkt.remove();routeRunning=false;},400);return;}
+    const n=routeNodes[routePath[step]];
+    pkt.style.left=`calc(${n.x}% - 14px)`;pkt.style.top=`calc(${n.y}% - 10px)`;
+    log.innerHTML=`<span style="color:#d97706">${routeMsgs[step]}</span>`;
+    document.querySelectorAll('.net-node').forEach(el=>el.style.boxShadow='');
+    const el=document.getElementById('rn'+routePath[step]);
+    if(el)el.style.boxShadow='0 0 14px currentColor';
+    step++;setTimeout(next,700);
+  }
+  next();
+}
+let hsDone=false;
+function startHS(){
+  if(hsDone)return;hsDone=true;
+  ['c1','a1','s1','s2','a2','c2','c3','a3','s3','c4','s4'].forEach((id,i)=>{
+    setTimeout(()=>{const el=document.getElementById(id);if(el)el.classList.add('show');},i*600);
+  });
+}
+function simHTTP(){
+  const req=document.getElementById('http-req'),res=document.getElementById('http-res');
+  req.innerHTML='';res.innerHTML='';
+  const rl=[`<span class="http-method">GET</span> /index.html HTTP/1.1`,`<span class="http-hk">Host:</span> <span class="http-hv">example.com</span>`,`<span class="http-hk">User-Agent:</span> <span class="http-hv">Mozilla/5.0</span>`,`<span class="http-hk">Accept:</span> <span class="http-hv">text/html</span>`];
+  const sl=[`<span class="http-status">HTTP/1.1 200 OK</span>`,`<span class="http-hk">Content-Type:</span> <span class="http-hv">text/html; charset=UTF-8</span>`,`<span class="http-hk">Content-Length:</span> <span class="http-hv">1256</span>`,``,`<span style="color:#aaa">&lt;!DOCTYPE html&gt;&lt;html&gt;...&lt;/html&gt;</span>`];
+  rl.forEach((l,i)=>setTimeout(()=>{req.innerHTML+=l+'<br>';},i*120));
+  sl.forEach((l,i)=>setTimeout(()=>{res.innerHTML+=l+'<br>';},900+i*120));
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！パケットはネットワーク通信の基本単位です！':'❌ 不正解。正解は「パケット」！インターネットはパケット交換方式で通信します。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！SYN→SYN-ACK→ACKの3回で接続を確立します！':'❌ 不正解。正解は「接続を確立してから通信を始める」！これで確実な通信が保証されます。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+initIntroMap();
+</script>
+</body>
+</html>

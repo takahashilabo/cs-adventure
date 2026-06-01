@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第11章：データベースの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#9333ea;--accent2:#e879f9;}
+.table-wrap{overflow-x:auto}
+.db-table{width:100%;border-collapse:collapse;font-size:13px;border-radius:10px;overflow:hidden}
+.db-table th{background:linear-gradient(135deg,#9333ea,#e879f9);color:white;padding:10px 14px;text-align:left;font-weight:800}
+.db-table td{padding:9px 14px;border-bottom:1.5px solid #f3e8ff;color:#2d2040;font-family:monospace}
+.db-table tr:hover td{background:#faf5ff}
+.db-table tr.highlight td{background:#ede9fe;font-weight:700}
+.index-vis{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.index-tree{display:flex;flex-direction:column;align-items:center;gap:6px}
+.tree-node{background:white;border:2px solid #ddd6fe;border-radius:10px;padding:8px 16px;font-family:monospace;font-weight:800;font-size:13px;color:#7c3aed;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(147,51,234,0.1)}
+.tree-node:hover{border-color:#9333ea;transform:scale(1.05)}
+.tree-node.active{background:linear-gradient(135deg,#9333ea,#e879f9);color:white;border-color:transparent}
+.tree-level{display:flex;gap:10px;justify-content:center}
+.tree-connector{height:16px;width:2px;background:#ddd6fe;margin:0 auto}
+.sql-editor{background:#1e1b2e;border-radius:12px;padding:14px;font-family:'Courier New',monospace;font-size:13px;color:#e2e0f0;line-height:1.8;min-height:60px}
+.sql-result{background:#f5f3ff;border:2px solid #ddd6fe;border-radius:10px;margin-top:10px;overflow:hidden}
+.sql-kw{color:#c084fc}
+.sql-str{color:#86efac}
+.sql-num{color:#fb923c}
+.txn-box{background:white;border:2px solid #f3e8ff;border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:all 0.3s}
+.txn-box.commit{border-color:#86efac;background:#f0fdf4}
+.txn-box.rollback{border-color:#fca5a5;background:#fef2f2}
+.txn-step{font-size:13px;color:#2d2040;font-family:monospace;padding:3px 0}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第11章 · データベースの仕組み</div>
+  <div class="scene-title">🗄️ なぜデータベースは速く検索できる？</div>
+  <div class="scene-desc">SNSには数十億件の投稿がある。でも検索したら0.1秒で結果が出てくる。普通にファイルを全部調べたら何年もかかるはずなのに…<strong>データベース</strong>の魔法を解き明かそう！🔍</div>
+  <div class="stage">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+      <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:16px;flex:1;min-width:140px;text-align:center">
+        <div style="font-size:28px">📄</div>
+        <div style="font-weight:800;color:#dc2626;margin:4px 0">ファイル検索</div>
+        <div style="font-size:12px;color:#9b8db4">全件を1つずつチェック<br><strong style="color:#dc2626">O(n) 遅い！</strong></div>
+        <div style="margin-top:8px;font-size:24px">😰</div>
+      </div>
+      <div style="font-size:28px;align-self:center;color:#9333ea">VS</div>
+      <div style="background:#faf5ff;border:2px solid #ddd6fe;border-radius:12px;padding:16px;flex:1;min-width:140px;text-align:center">
+        <div style="font-size:28px">🌳</div>
+        <div style="font-weight:800;color:#9333ea;margin:4px 0">B木インデックス</div>
+        <div style="font-size:12px;color:#9b8db4">ツリー構造で探索<br><strong style="color:#9333ea">O(log n) 速い！</strong></div>
+        <div style="margin-top:8px;font-size:24px">🚀</div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">💡 1億件のデータ検索: ファイル検索→約1億回比較 / B木→約27回比較<br>（log₂(100,000,000) ≈ 27）インデックスの力！</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：テーブルとSQL →</button>
+</div>
+
+<div class="scene" id="s1">
+  <div class="chapter-label">第11章 · Step 1/4</div>
+  <div class="scene-title">📊 Step 1：テーブルとSQL</div>
+  <div class="scene-desc">データベースはデータを<strong>テーブル（表）</strong>で管理する。<strong>SQL</strong>という言語で「こういうデータを取り出して」と指示する。試してみよう！</div>
+  <div class="stage">
+    <div style="font-size:12px;color:#9333ea;font-weight:800;margin-bottom:8px">👥 users テーブル</div>
+    <div class="table-wrap">
+      <table class="db-table" id="db-table">
+        <tr><th>id</th><th>name</th><th>age</th><th>city</th></tr>
+        <tr><td>1</td><td>Alice</td><td>25</td><td>東京</td></tr>
+        <tr><td>2</td><td>Bob</td><td>30</td><td>大阪</td></tr>
+        <tr><td>3</td><td>Carol</td><td>22</td><td>東京</td></tr>
+        <tr><td>4</td><td>Dave</td><td>28</td><td>名古屋</td></tr>
+        <tr><td>5</td><td>Eve</td><td>25</td><td>東京</td></tr>
+        <tr><td>6</td><td>Frank</td><td>35</td><td>大阪</td></tr>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:#9333ea;font-weight:800;margin-bottom:6px">SQL クエリを選ぼう</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="runSQL('all')">全件取得</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="runSQL('tokyo')">東京のユーザー</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="runSQL('age')">25歳以上</button>
+      <button class="btn-action" style="font-size:12px;padding:6px 14px" onclick="runSQL('count')">都市ごとに集計</button>
+    </div>
+    <div class="sql-editor" id="sql-display"></div>
+    <div id="sql-result-area" class="sql-result" style="min-height:40px;padding:10px;font-size:13px;color:#6b5f80"></div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：インデックス →</button>
+</div>
+
+<div class="scene" id="s2">
+  <div class="chapter-label">第11章 · Step 2/4</div>
+  <div class="scene-title">🌳 Step 2：B木インデックス — 速い検索の秘密</div>
+  <div class="scene-desc"><strong>インデックス（索引）</strong>は本の巻末索引と同じ。B木という木構造でデータの場所を記録しておき、二分探索で爆速検索！クリックして探索を体験しよう。</div>
+  <div class="stage">
+    <div style="font-size:12px;color:#9333ea;font-weight:800;margin-bottom:8px;text-align:center">id インデックス（B木）— 値をクリックして探索！</div>
+    <div id="btree-vis" style="text-align:center"></div>
+    <div id="btree-log" class="info-box" style="margin-top:12px;min-height:36px;font-family:monospace;font-size:12px">👆 ノードをクリックするとB木探索のステップを表示します</div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：トランザクション →</button>
+</div>
+
+<div class="scene" id="s3">
+  <div class="chapter-label">第11章 · Step 3/4</div>
+  <div class="scene-title">🔒 Step 3：トランザクション — 「全部成功か全部失敗」</div>
+  <div class="scene-desc">銀行振込を想像して。「口座Aから1万円引く」と「口座Bに1万円加える」の途中でクラッシュしたら？<strong>トランザクション</strong>は全部成功（COMMIT）か全部なかったこと（ROLLBACK）を保証する！</div>
+  <div class="stage">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;font-weight:800;color:#9333ea;margin-bottom:8px">✅ 成功パターン（COMMIT）</div>
+        <div class="txn-box commit">
+          <div class="txn-step">BEGIN TRANSACTION</div>
+          <div class="txn-step">  口座A: 10,000 → 0円 ✓</div>
+          <div class="txn-step">  口座B: 0 → 10,000円 ✓</div>
+          <div class="txn-step" style="color:#16a34a;font-weight:800">COMMIT — 確定！💾</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;font-weight:800;color:#dc2626;margin-bottom:8px">❌ 失敗パターン（ROLLBACK）</div>
+        <div class="txn-box rollback">
+          <div class="txn-step">BEGIN TRANSACTION</div>
+          <div class="txn-step">  口座A: 10,000 → 0円 ✓</div>
+          <div class="txn-step" style="color:#dc2626">  💥 サーバークラッシュ!</div>
+          <div class="txn-step" style="color:#dc2626;font-weight:800">ROLLBACK — 全部元に戻す！↩️</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px;background:#faf5ff;border:2px solid #ddd6fe;border-radius:12px;padding:14px">
+      <div style="font-weight:800;color:#9333ea;margin-bottom:8px">🎯 ACID特性（トランザクションの4つの保証）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:white;border-radius:8px;padding:8px;font-size:12px;border:1.5px solid #f3e8ff"><strong style="color:#9333ea">A</strong>tomicity（原子性）<br><span style="color:#6b5f80">全部か0か</span></div>
+        <div style="background:white;border-radius:8px;padding:8px;font-size:12px;border:1.5px solid #f3e8ff"><strong style="color:#9333ea">C</strong>onsistency（一貫性）<br><span style="color:#6b5f80">制約を常に満たす</span></div>
+        <div style="background:white;border-radius:8px;padding:8px;font-size:12px;border:1.5px solid #f3e8ff"><strong style="color:#9333ea">I</strong>solation（分離性）<br><span style="color:#6b5f80">同時実行を安全に</span></div>
+        <div style="background:white;border-radius:8px;padding:8px;font-size:12px;border:1.5px solid #f3e8ff"><strong style="color:#9333ea">D</strong>urability（永続性）<br><span style="color:#6b5f80">COMMITは永続保存</span></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<div class="scene" id="sq">
+  <div class="chapter-label">第11章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#faf5ff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. データベースで高速検索を実現するデータ構造は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">配列（Array）</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">B木インデックス</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">リンクリスト</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">スタック</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#faf5ff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. トランザクションのROLLBACKとは？ 💡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">変更を永続化する</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">データを削除する</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">変更をなかったことにして元に戻す</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">バックアップを作る</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第11章 完了！ 🎊</button>
+</div>
+
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第11章クリア！</h2>
+    <p>データベースがどうやってデータを<br>速く・安全に管理するかを学んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>SQLでデータを取得・集計できる</li>
+        <li>B木インデックスでO(log n)の高速検索</li>
+        <li>1億件でも約27回の比較で見つかる！</li>
+        <li>トランザクションで全部成功か全部失敗を保証</li>
+        <li>ACID特性でデータの信頼性を守る</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s2')initBTree();
+  window.scrollTo(0,0);
+}
+const sqlQueries={
+  all:{q:`SELECT * FROM users;`,result:'全6件のユーザーを返す'},
+  tokyo:{q:`SELECT * FROM users\nWHERE city = '東京';`,result:'Alice（1）, Carol（3）, Eve（5）— 3件'},
+  age:{q:`SELECT * FROM users\nWHERE age >= 25\nORDER BY age;`,result:'Alice, Bob, Dave, Eve, Frank — 5件'},
+  count:{q:`SELECT city, COUNT(*) as 人数\nFROM users\nGROUP BY city;`,result:'東京:3, 大阪:2, 名古屋:1'},
+};
+function runSQL(type){
+  const q=sqlQueries[type];
+  document.getElementById('sql-display').innerHTML=q.q.replace(/SELECT/g,'<span class="sql-kw">SELECT</span>').replace(/FROM/g,'<span class="sql-kw">FROM</span>').replace(/WHERE/g,'<span class="sql-kw">WHERE</span>').replace(/ORDER BY/g,'<span class="sql-kw">ORDER BY</span>').replace(/GROUP BY/g,'<span class="sql-kw">GROUP BY</span>').replace(/COUNT/g,'<span class="sql-kw">COUNT</span>').replace(/'東京'/g,'<span class="sql-str">\'東京\'</span>').replace(/25/g,'<span class="sql-num">25</span>').replace(/\n/g,'<br>');
+  document.getElementById('sql-result-area').innerHTML=`<strong style="color:#9333ea">結果:</strong> ${q.result}`;
+}
+function initBTree(){
+  const vis=document.getElementById('btree-vis');
+  if(vis.children.length>0)return;
+  const levels=[
+    [{val:'4',info:'ルートノード: 4以下は左、4より大きければ右へ'}],
+    [{val:'2',info:'2以下は左へ、2-4は右へ'},{val:'5',info:'5以下は左へ、5より大きければ右へ'}],
+    [{val:'1',info:'リーフ: id=1 → Alice'},{val:'3',info:'リーフ: id=3 → Carol'},{val:'4.5',info:'リーフ: id=5 → Eve'},{val:'6',info:'リーフ: id=6 → Frank'}],
+  ];
+  levels.forEach((level,li)=>{
+    const row=document.createElement('div'); row.className='tree-level';
+    if(li>0){const con=document.createElement('div');con.className='tree-connector';vis.appendChild(con);}
+    level.forEach(node=>{
+      const el=document.createElement('div'); el.className='tree-node';
+      el.textContent=node.val;
+      el.onclick=()=>{
+        document.querySelectorAll('.tree-node').forEach(n=>n.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('btree-log').innerHTML=`<strong>ノード "${node.val}"</strong>: ${node.info}`;
+      };
+      row.appendChild(el);
+    });
+    vis.appendChild(row);
+  });
+}
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return; q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！B木インデックスがO(log n)の高速検索を実現します！':'❌ 不正解。正解は「B木インデックス」！ツリー構造で超高速に目的データを見つけます。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return; q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c'; el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！ROLLBACKで変更をすべてなかったことにする。データの整合性を守ります！':'❌ 不正解。ROLLBACKは「変更をなかったことにして元に戻す」操作です。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+</script>
+</body>
+</html>
