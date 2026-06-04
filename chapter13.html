@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第13章：深層学習の基礎 — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#ec4899;--accent2:#f9a8d4;}
+canvas{border-radius:10px;display:block}
+
+/* Neuron */
+.neuron-circle{
+  width:54px;height:54px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:13px;cursor:pointer;
+  transition:all 0.3s;border:3px solid;
+  position:relative;
+}
+.neuron-circle.input{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+.neuron-circle.hidden{background:#fdf4ff;border-color:#e879f9;color:#86198f}
+.neuron-circle.output{background:#fef2f2;border-color:#fca5a5;color:#dc2626}
+.neuron-circle.active{
+  background:linear-gradient(135deg,#ec4899,#f9a8d4);
+  border-color:transparent;color:white;
+  box-shadow:0 0 16px rgba(236,72,153,0.5);
+  transform:scale(1.12);
+}
+
+/* Network canvas */
+#net-canvas{background:white;border:2px solid #fce7f3;border-radius:12px;cursor:crosshair}
+
+/* Weight slider */
+.weight-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.weight-label{font-size:12px;font-weight:700;color:#6b5f80;min-width:80px;font-family:monospace}
+.weight-val{font-family:monospace;font-size:13px;font-weight:800;color:#ec4899;min-width:40px}
+
+/* Activation viz */
+.act-card{background:white;border:2px solid #fce7f3;border-radius:12px;padding:12px;text-align:center;cursor:pointer;transition:all 0.2s}
+.act-card:hover{border-color:#ec4899;transform:translateY(-2px)}
+.act-card.selected{border-color:#ec4899;background:#fdf4ff}
+.act-name{font-size:13px;font-weight:800;color:#ec4899;margin-bottom:4px}
+.act-desc{font-size:11px;color:#9b8db4}
+
+/* Loss bar */
+.loss-bar{height:24px;border-radius:12px;transition:width 0.5s cubic-bezier(.34,1.56,.64,1);background:linear-gradient(135deg,#ec4899,#f97316)}
+.loss-track{background:#f3f4f6;border-radius:12px;overflow:hidden;height:24px}
+
+/* Training step */
+.epoch-dot{width:12px;height:12px;border-radius:50%;background:#fce7f3;border:2px solid #f9a8d4;transition:all 0.3s;display:inline-block}
+.epoch-dot.done{background:linear-gradient(135deg,#ec4899,#f9a8d4);border-color:transparent}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<!-- S0: Intro -->
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第13章 · 深層学習の基礎</div>
+  <div class="scene-title">🧠 AIはどうやって「学ぶ」の？</div>
+  <div class="scene-desc">
+    ChatGPT や画像認識AIは、プログラマーがルールを書いたわけじゃない。<br>
+    大量のデータから<strong>自分でパターンを見つけた</strong>のだ。<br>
+    その仕組みが<strong>深層学習（ディープラーニング）</strong>。脳の神経細胞を模したモデルで謎を解こう！🔍
+  </div>
+  <div class="stage" style="display:flex;flex-direction:column;align-items:center;gap:16px">
+    <canvas id="intro-net" width="480" height="200" style="width:100%;max-width:480px"></canvas>
+    <button class="btn-action" onclick="animIntroNet()">▶ ネットワークを活性化！</button>
+    <div style="font-size:13px;color:#9b8db4;font-weight:700">← 信号が入力から出力へ伝わる様子</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：ニューロンとは 🔵</button>
+</div>
+
+<!-- S1: Neuron -->
+<div class="scene" id="s1">
+  <div class="chapter-label">第13章 · Step 1/4</div>
+  <div class="scene-title">🔵 Step 1：人工ニューロンの仕組み</div>
+  <div class="scene-desc">
+    脳の神経細胞（ニューロン）を数学でモデル化したもの。<br>
+    <strong>入力 × 重み</strong> を足し合わせて、<strong>活性化関数</strong>に通して出力する。たったこれだけ！
+  </div>
+  <div class="stage">
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:12px;color:#ec4899;font-weight:800;margin-bottom:8px">⚙️ 重み（Weight）を動かしてみよう</div>
+        <div class="weight-row">
+          <span class="weight-label">入力1 x₁:</span>
+          <input type="range" min="0" max="1" step="0.1" value="0.7" id="x1" oninput="calcNeuron()" style="flex:1;accent-color:#ec4899">
+          <span class="weight-val" id="vx1">0.7</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">重み1 w₁:</span>
+          <input type="range" min="-2" max="2" step="0.1" value="0.5" id="w1" oninput="calcNeuron()" style="flex:1;accent-color:#ec4899">
+          <span class="weight-val" id="vw1">0.5</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">入力2 x₂:</span>
+          <input type="range" min="0" max="1" step="0.1" value="0.3" id="x2" oninput="calcNeuron()" style="flex:1;accent-color:#ec4899">
+          <span class="weight-val" id="vx2">0.3</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">重み2 w₂:</span>
+          <input type="range" min="-2" max="2" step="0.1" value="-0.8" id="w2" oninput="calcNeuron()" style="flex:1;accent-color:#ec4899">
+          <span class="weight-val" id="vw2">-0.8</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">バイアス b:</span>
+          <input type="range" min="-1" max="1" step="0.1" value="0.1" id="bias" oninput="calcNeuron()" style="flex:1;accent-color:#ec4899">
+          <span class="weight-val" id="vbias">0.1</span>
+        </div>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;color:#ec4899;font-weight:800;margin-bottom:8px">📊 計算結果</div>
+        <div style="background:white;border:2px solid #fce7f3;border-radius:12px;padding:14px;font-family:monospace;font-size:13px;line-height:2">
+          <div>z = x₁×w₁ + x₂×w₂ + b</div>
+          <div id="calc-z" style="color:#ec4899;font-weight:800"></div>
+          <div style="margin-top:6px;border-top:1px solid #fce7f3;padding-top:6px">
+            sigmoid(z):
+          </div>
+          <div id="calc-out" style="font-size:18px;font-weight:900;color:#ec4899"></div>
+        </div>
+        <canvas id="sigmoid-canvas" width="180" height="100" style="width:100%;margin-top:10px;background:white;border:2px solid #fce7f3"></canvas>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">
+      💡 <strong>重み（Weight）</strong>は「どの入力をどれだけ重視するか」。<br>
+      <strong>バイアス（Bias）</strong>は「どのくらい積極的に発火するか」のしきい値調整。<br>
+      学習 = この重みとバイアスを自動で最適化すること！
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：ネットワークを作る 🕸️</button>
+</div>
+
+<!-- S2: Network -->
+<div class="scene" id="s2">
+  <div class="chapter-label">第13章 · Step 2/4</div>
+  <div class="scene-title">🕸️ Step 2：ニューロンを積み重ねるとすごくなる</div>
+  <div class="scene-desc">
+    ニューロンを<strong>層（レイヤー）</strong>状に並べて繋げる — これが<strong>ニューラルネットワーク</strong>。<br>
+    層を深くするほど複雑なパターンを学べる → これが「<strong>深層</strong>学習」の意味！
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">👆 入力ニューロンをクリックして信号を流してみよう！</div>
+    <canvas id="net-canvas" width="460" height="240" style="width:100%;max-width:460px"></canvas>
+    <div id="net-info" class="info-box" style="margin-top:10px;font-family:monospace;font-size:13px;min-height:36px">入力層のノードをクリックしてね！</div>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <span style="background:#eff6ff;border:2px solid #93c5fd;color:#1d4ed8;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔵 入力層</span>
+      <span style="background:#fdf4ff;border:2px solid #e879f9;color:#86198f;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🟣 隠れ層（特徴を抽出）</span>
+      <span style="background:#fef2f2;border:2px solid #fca5a5;color:#dc2626;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔴 出力層（答え）</span>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：どうやって学ぶ？ 📉</button>
+</div>
+
+<!-- S3: Training -->
+<div class="scene" id="s3">
+  <div class="chapter-label">第13章 · Step 3/4</div>
+  <div class="scene-title">📉 Step 3：間違いから学ぶ — 誤差逆伝播</div>
+  <div class="scene-desc">
+    AIの学習は「試して → 間違いを測って → 修正する」の繰り返し。<br>
+    <strong>損失関数</strong>で間違いの大きさを数値化し、<strong>誤差逆伝播法（Backpropagation）</strong>で全重みを少しずつ修正する。
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;color:#ec4899;font-weight:800;margin-bottom:10px">🏋️ 学習のシミュレーション（犬 vs 猫 分類器）</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;justify-content:center">
+      <div style="text-align:center;background:white;border:2px solid #fce7f3;border-radius:12px;padding:10px 16px">
+        <div style="font-size:28px">🐶</div>
+        <div style="font-size:12px;color:#9b8db4">正解: 犬(1.0)</div>
+        <div style="font-size:14px;font-weight:800;color:#ec4899">予測: <span id="pred-dog">?</span></div>
+      </div>
+      <div style="text-align:center;background:white;border:2px solid #fce7f3;border-radius:12px;padding:10px 16px">
+        <div style="font-size:28px">🐱</div>
+        <div style="font-size:12px;color:#9b8db4">正解: 猫(0.0)</div>
+        <div style="font-size:14px;font-weight:800;color:#ec4899">予測: <span id="pred-cat">?</span></div>
+      </div>
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:4px">
+        <span>損失（Loss）— 小さいほど良い</span>
+        <span id="loss-val" style="color:#ec4899">—</span>
+      </div>
+      <div class="loss-track"><div class="loss-bar" id="loss-bar" style="width:100%"></div></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:#9b8db4;font-weight:700;margin-bottom:6px">エポック進捗</div>
+      <div id="epoch-dots" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    </div>
+    <button class="btn-action" onclick="startTraining()" id="btn-train">▶ 学習スタート！</button>
+    <div id="train-log" style="margin-top:10px;background:#fdf4ff;border:2px solid #fce7f3;border-radius:10px;padding:10px;font-family:monospace;font-size:12px;min-height:50px;max-height:100px;overflow-y:auto;color:#86198f;line-height:1.8"></div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<!-- Quiz -->
+<div class="scene" id="sq">
+  <div class="chapter-label">第13章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#fdf4ff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. ニューラルネットワークの「重み（Weight）」とは？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">ファイルのデータサイズ</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">各入力をどれだけ重視するかの係数</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">CPUのクロック速度</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">メモリの使用量</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#fdf4ff,#fce7f3);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. 「深層」学習の「深層」とは何が深い？ 💡</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">データの量</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">計算の精度</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">ニューラルネットワークの層の数</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">学習にかかる時間</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第13章 完了！ 🎊</button>
+</div>
+
+<!-- Done -->
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第13章クリア！</h2>
+    <p>ニューロン・重み・誤差逆伝播など<br>深層学習の核心を掴んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>人工ニューロン = 入力×重み の合計 → 活性化関数</li>
+        <li>層を重ねることで複雑なパターンを学習できる</li>
+        <li>「深層」= 隠れ層が深い（多い）こと</li>
+        <li>損失関数で間違いの大きさを測る</li>
+        <li>誤差逆伝播で全重みを少しずつ修正して学習</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s0')animIntroNet();
+  if(id==='s1')calcNeuron();
+  if(id==='s2')drawNetwork();
+  if(id==='s3')initTraining();
+  window.scrollTo(0,0);
+}
+
+// S0: intro network animation
+function animIntroNet(){
+  const canvas=document.getElementById('intro-net');
+  const ctx=canvas.getContext('2d');
+  const W=480,H=200;
+  const layers=[[60,90,120],[160,75,105,135],[280,60,90,120,150],[400,90,110]];
+  const colors=['#93c5fd','#e879f9','#e879f9','#fca5a5'];
+  let frame=0;
+  function draw(){
+    ctx.fillStyle='white';ctx.fillRect(0,0,W,H);
+    // draw edges
+    layers.forEach((layer,li)=>{
+      if(li===layers.length-1)return;
+      layer.forEach(y=>{
+        layers[li+1].forEach(y2=>{
+          ctx.beginPath();
+          const alpha=0.08+0.15*Math.sin(frame*0.05+y*0.02);
+          ctx.strokeStyle=`rgba(236,72,153,${alpha})`;
+          ctx.lineWidth=1.5;
+          ctx.moveTo([60,160,280,400][li],y);
+          ctx.lineTo([60,160,280,400][li+1],y2);
+          ctx.stroke();
+        });
+      });
+    });
+    // draw nodes
+    layers.forEach((layer,li)=>{
+      layer.forEach((y,ni)=>{
+        const phase=frame*0.06+li*0.8+ni*0.5;
+        const act=0.3+0.7*Math.max(0,Math.sin(phase));
+        ctx.beginPath();
+        ctx.arc([60,160,280,400][li],y,14,0,Math.PI*2);
+        ctx.fillStyle=`rgba(${li===0?'147,197,253':li===layers.length-1?'252,165,165':'232,121,249'},${0.3+act*0.7})`;
+        ctx.fill();
+        ctx.strokeStyle=colors[li];ctx.lineWidth=2;ctx.stroke();
+        if(act>0.5){
+          ctx.beginPath();ctx.arc([60,160,280,400][li],y,18,0,Math.PI*2);
+          ctx.strokeStyle=`rgba(236,72,153,${(act-0.5)*0.6})`;ctx.lineWidth=2;ctx.stroke();
+        }
+      });
+    });
+    frame++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// S1: neuron calc
+function sigmoid(x){return 1/(1+Math.exp(-x));}
+function calcNeuron(){
+  const x1=+document.getElementById('x1').value;
+  const x2=+document.getElementById('x2').value;
+  const w1=+document.getElementById('w1').value;
+  const w2=+document.getElementById('w2').value;
+  const b=+document.getElementById('bias').value;
+  document.getElementById('vx1').textContent=x1.toFixed(1);
+  document.getElementById('vx2').textContent=x2.toFixed(1);
+  document.getElementById('vw1').textContent=w1.toFixed(1);
+  document.getElementById('vw2').textContent=w2.toFixed(1);
+  document.getElementById('vbias').textContent=b.toFixed(1);
+  const z=x1*w1+x2*w2+b;
+  const out=sigmoid(z);
+  document.getElementById('calc-z').textContent=`z = ${x1.toFixed(1)}×${w1.toFixed(1)} + ${x2.toFixed(1)}×${w2.toFixed(1)} + ${b.toFixed(1)} = ${z.toFixed(3)}`;
+  document.getElementById('calc-out').textContent=`出力 = ${out.toFixed(4)}`;
+  // draw sigmoid
+  drawSigmoid(z);
+}
+function drawSigmoid(zMark){
+  const canvas=document.getElementById('sigmoid-canvas');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  ctx.fillStyle='white';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#f3e8ff';ctx.lineWidth=1;
+  [0.25,0.5,0.75].forEach(f=>{ctx.beginPath();ctx.moveTo(0,H*f);ctx.lineTo(W,H*f);ctx.stroke();});
+  ctx.beginPath();ctx.strokeStyle='#e879f9';ctx.lineWidth=2;
+  for(let x=0;x<W;x++){
+    const z=(x/W-0.5)*10;
+    const y=H-(sigmoid(z)*H*0.85+H*0.075);
+    x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // mark current z
+  const markX=(zMark/10+0.5)*W;
+  const markY=H-(sigmoid(zMark)*H*0.85+H*0.075);
+  ctx.beginPath();ctx.arc(markX,markY,5,0,Math.PI*2);
+  ctx.fillStyle='#ec4899';ctx.fill();
+  ctx.fillStyle='#6b5f80';ctx.font='10px sans-serif';ctx.fillText('σ(z)',markX+6,markY-4);
+}
+
+// S2: network drawing
+const NET_LAYERS=[
+  [{x:60,y:70,label:'x₁'},{x:60,y:130,label:'x₂'},{x:60,y:190,label:'x₃'}],
+  [{x:190,y:55,label:'h₁'},{x:190,y:105,label:'h₂'},{x:190,y:155,label:'h₃'},{x:190,y:205,label:'h₄'}],
+  [{x:320,y:80,label:'h₅'},{x:320,y:130,label:'h₆'},{x:320,y:180,label:'h₇'}],
+  [{x:420,y:105,label:'ŷ₁'},{x:420,y:155,label:'ŷ₂'}],
+];
+const NET_COLORS=['#93c5fd','#e879f9','#e879f9','#fca5a5'];
+let activeNodes=new Set();
+
+function drawNetwork(){
+  const canvas=document.getElementById('net-canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // edges
+  NET_LAYERS.forEach((layer,li)=>{
+    if(li===NET_LAYERS.length-1)return;
+    layer.forEach(n=>{
+      NET_LAYERS[li+1].forEach(n2=>{
+        const isActive=activeNodes.has(`${li}-${n.label}`)&&activeNodes.has(`${li+1}-${n2.label}`);
+        ctx.beginPath();
+        ctx.strokeStyle=isActive?'rgba(236,72,153,0.7)':'rgba(200,180,220,0.25)';
+        ctx.lineWidth=isActive?2:1.5;
+        ctx.moveTo(n.x,n.y);ctx.lineTo(n2.x,n2.y);ctx.stroke();
+      });
+    });
+  });
+  // nodes
+  NET_LAYERS.forEach((layer,li)=>{
+    layer.forEach(n=>{
+      const key=`${li}-${n.label}`;
+      const isActive=activeNodes.has(key);
+      ctx.beginPath();ctx.arc(n.x,n.y,18,0,Math.PI*2);
+      ctx.fillStyle=isActive?`#ec4899`:['#eff6ff','#fdf4ff','#fdf4ff','#fef2f2'][li];
+      ctx.fill();
+      ctx.strokeStyle=NET_COLORS[li];ctx.lineWidth=isActive?3:2;ctx.stroke();
+      if(isActive){
+        ctx.beginPath();ctx.arc(n.x,n.y,24,0,Math.PI*2);
+        ctx.strokeStyle='rgba(236,72,153,0.3)';ctx.lineWidth=4;ctx.stroke();
+      }
+      ctx.fillStyle=isActive?'white':['#1d4ed8','#86198f','#86198f','#dc2626'][li];
+      ctx.font='bold 11px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(n.label,n.x,n.y);
+    });
+  });
+}
+
+document.addEventListener('click',e=>{
+  const canvas=document.getElementById('net-canvas');
+  if(!canvas||!document.getElementById('s2').classList.contains('active'))return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*canvas.width/rect.width;
+  const my=(e.clientY-rect.top)*canvas.height/rect.height;
+  NET_LAYERS.forEach((layer,li)=>{
+    layer.forEach(n=>{
+      if(Math.hypot(mx-n.x,my-n.y)<22&&li===0){
+        // propagate
+        activeNodes.clear();
+        activeNodes.add(`0-${n.label}`);
+        document.getElementById('net-info').textContent=`${n.label} に信号を入力 → 次の層へ伝播中...`;
+        let delay=0;
+        NET_LAYERS.forEach((_,nextLi)=>{
+          if(nextLi===0)return;
+          setTimeout(()=>{
+            NET_LAYERS[nextLi].forEach(nn=>{
+              if(Math.random()>0.3)activeNodes.add(`${nextLi}-${nn.label}`);
+            });
+            drawNetwork();
+            if(nextLi===NET_LAYERS.length-1){
+              document.getElementById('net-info').textContent=`出力：ŷ₁=0.82, ŷ₂=0.18（この入力は "クラス1" と判定！）`;
+            }
+          },delay+=400);
+        });
+      }
+    });
+  });
+});
+
+// S3: training
+let trainingRunning=false;
+function initTraining(){
+  const dots=document.getElementById('epoch-dots');
+  dots.innerHTML='';
+  for(let i=0;i<20;i++){const d=document.createElement('div');d.className='epoch-dot';d.id='dot'+i;dots.appendChild(d);}
+  document.getElementById('loss-bar').style.width='100%';
+  document.getElementById('loss-val').textContent='—';
+  document.getElementById('pred-dog').textContent='?';
+  document.getElementById('pred-cat').textContent='?';
+  document.getElementById('train-log').innerHTML='';
+  trainingRunning=false;
+  document.getElementById('btn-train').disabled=false;
+}
+function startTraining(){
+  if(trainingRunning)return;trainingRunning=true;
+  document.getElementById('btn-train').disabled=true;
+  const log=document.getElementById('train-log');
+  let epoch=0;const total=20;
+  function step(){
+    if(epoch>=total)return;
+    const progress=epoch/total;
+    const loss=(1-progress)*0.85+Math.random()*0.08;
+    const predDog=Math.min(0.99,(0.2+progress*0.75+Math.random()*0.05)).toFixed(2);
+    const predCat=Math.max(0.01,(0.8-progress*0.75+Math.random()*0.05)).toFixed(2);
+    document.getElementById('loss-bar').style.width=(loss*100)+'%';
+    document.getElementById('loss-val').textContent=loss.toFixed(4);
+    document.getElementById('pred-dog').textContent=predDog;
+    document.getElementById('pred-cat').textContent=predCat;
+    document.getElementById('dot'+epoch).classList.add('done');
+    const msgs=['初期予測：ほぼランダム','少し学習してきた','パターンを掴み始めた','損失が下がってきた！','かなり正確になってきた','ほぼ完璧な分類！✅'];
+    if(epoch%4===0){log.innerHTML+=`<div>Epoch ${epoch+1}: loss=${loss.toFixed(4)} — ${msgs[Math.min(Math.floor(epoch/4),5)]}</div>`;log.scrollTop=log.scrollHeight;}
+    epoch++;
+    setTimeout(step,200);
+  }
+  step();
+}
+
+// Quiz
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！重みは各入力の重要度を決める係数。学習で自動的に最適化される！':'❌ 不正解。正解は「各入力をどれだけ重視するかの係数」！学習でこの値が調整されます。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！隠れ層が深い（多い）ほど複雑なパターンを学習できる！':'❌ 不正解。「深層」= ニューラルネットワークの層の数が深いことです！';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+
+// init
+animIntroNet();
+</script>
+</body>
+</html>

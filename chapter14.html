@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第14章：トランスフォーマーの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#0891b2;--accent2:#67e8f9;}
+
+/* Token */
+.token{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:6px 12px;border-radius:8px;font-weight:800;font-size:14px;
+  border:2px solid;cursor:pointer;transition:all 0.25s;margin:3px;
+  font-family:monospace;
+}
+.token:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(8,145,178,0.2)}
+.token.selected{transform:scale(1.1);box-shadow:0 0 0 3px rgba(8,145,178,0.4)}
+
+/* Attention heatmap */
+.attn-grid{display:grid;gap:3px}
+.attn-cell{
+  width:36px;height:36px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:800;cursor:pointer;
+  transition:all 0.3s;border:1px solid rgba(8,145,178,0.2);
+}
+.attn-cell:hover{transform:scale(1.1)}
+
+/* QKV boxes */
+.qkv-box{background:white;border:2px solid;border-radius:10px;padding:10px 12px;text-align:center;flex:1;min-width:80px}
+.qkv-label{font-size:11px;font-weight:800;letter-spacing:1px;margin-bottom:4px}
+.qkv-val{font-family:monospace;font-size:11px;color:#2d2040;line-height:1.6}
+
+/* Pos encoding */
+.pos-row{display:flex;gap:3px;margin-bottom:3px}
+.pos-cell{width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1px solid rgba(8,145,178,0.2)}
+
+/* Transformer block */
+.tf-block{background:white;border:2px solid #bae6fd;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:all 0.3s}
+.tf-block.active{border-color:#0891b2;background:#f0f9ff;box-shadow:0 4px 16px rgba(8,145,178,0.15)}
+.tf-icon{font-size:22px}
+.tf-name{font-size:14px;font-weight:800;color:#0369a1}
+.tf-desc{font-size:12px;color:#9b8db4}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<!-- S0: Intro -->
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第14章 · トランスフォーマーの仕組み</div>
+  <div class="scene-title">⚡ ChatGPT を動かす「トランスフォーマー」とは？</div>
+  <div class="scene-desc">
+    2017年に登場した<strong>Transformer（トランスフォーマー）</strong>は、AIの歴史を変えた。<br>
+    文章を「並列処理」し、<strong>どの単語がどの単語に関係するか</strong>を一度に計算できる。<br>
+    ChatGPT・Gemini・Claude すべてこの仕組みで動いている！✨
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">「猫が魚を食べた」— どの単語が重要？クリックして確認！</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-bottom:16px" id="intro-tokens"></div>
+    <div id="intro-attn-vis" style="min-height:80px;text-align:center;padding:16px;background:#f0f9ff;border:2px solid #bae6fd;border-radius:12px">
+      <span style="color:#9b8db4;font-size:13px">単語をクリックすると、その単語がどこに「注目」しているか表示されます</span>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：トークン化 🔤</button>
+</div>
+
+<!-- S1: Tokenization -->
+<div class="scene" id="s1">
+  <div class="chapter-label">第14章 · Step 1/4</div>
+  <div class="scene-title">🔤 Step 1：文章をトークンに分割する</div>
+  <div class="scene-desc">
+    Transformerへの入力はまず<strong>トークン（Token）</strong>という単位に分割される。<br>
+    英語なら単語・語尾、日本語は形態素や文字のかたまり。<br>
+    各トークンは<strong>番号（ID）</strong>に変換されてモデルに入る！
+  </div>
+  <div class="stage">
+    <div style="margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="tok-input" type="text" value="The cat sat on the mat"
+          style="flex:1;padding:10px 14px;border:2px solid #bae6fd;border-radius:10px;font-size:14px;outline:none;font-family:inherit;min-width:200px"
+          oninput="tokenize()">
+        <button class="btn-action" onclick="tokenize()">分割！</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#0891b2;font-weight:800;margin-bottom:6px">トークン → ID</div>
+    <div id="tok-result" style="display:flex;flex-wrap:wrap;gap:6px;min-height:48px;margin-bottom:12px"></div>
+    <div style="font-size:12px;color:#0891b2;font-weight:800;margin-bottom:6px">埋め込みベクトル（Embedding）— 意味を数値に変換</div>
+    <div id="embed-vis" style="overflow-x:auto"></div>
+    <div class="info-box" style="margin-top:12px">
+      💡 GPT-4 は約<strong>10万種類</strong>のトークンを使用。<br>
+      英語1単語 ≈ 1トークン、日本語1文字 ≈ 1〜3トークン。<br>
+      各トークンは<strong>768〜4096次元</strong>のベクトルに変換される！
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：Attention（注意機構） 👁️</button>
+</div>
+
+<!-- S2: Attention -->
+<div class="scene" id="s2">
+  <div class="chapter-label">第14章 · Step 2/4</div>
+  <div class="scene-title">👁️ Step 2：Self-Attention — どの単語に注目するか</div>
+  <div class="scene-desc">
+    Transformerの核心は<strong>Self-Attention（自己注意機構）</strong>。<br>
+    各単語が文章全体の他の単語を「どれだけ参照するか」をスコアで表す。<br>
+    「it」が「cat」を指すのか「mat」を指すのかを、文脈から判断できる！
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:8px">👆 行の単語が「列の単語」にどれだけ注目しているかを表すヒートマップ</div>
+    <div style="overflow-x:auto;margin-bottom:12px">
+      <div id="attn-map"></div>
+    </div>
+    <button class="btn-action" style="margin-bottom:12px" onclick="randomizeAttn()">🎲 別のAttentionパターンを見る</button>
+    <div style="font-size:12px;color:#0891b2;font-weight:800;margin-bottom:8px">Q・K・V の仕組み（数学的な裏側）</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="qkv-box" style="border-color:#f472b6">
+        <div class="qkv-label" style="color:#e11d48">🔍 Query (Q)</div>
+        <div class="qkv-val">「私は何を探しているか？」<br>現在のトークンの質問</div>
+      </div>
+      <div class="qkv-box" style="border-color:#fb923c">
+        <div class="qkv-label" style="color:#d97706">🗝️ Key (K)</div>
+        <div class="qkv-val">「私はどんな情報を持つか？」<br>各トークンの特徴</div>
+      </div>
+      <div class="qkv-box" style="border-color:#86efac">
+        <div class="qkv-label" style="color:#16a34a">📦 Value (V)</div>
+        <div class="qkv-val">「実際に渡す情報」<br>Attentionスコアで重み付け</div>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:12px">
+      💡 Attention(Q,K,V) = softmax(QKᵀ/√d) × V<br>
+      この計算を<strong>全トークンペアで同時並列</strong>に行える — これがTransformerの革命的な点！
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：Positional Encoding 📍</button>
+</div>
+
+<!-- S3: Positional Encoding + Full Architecture -->
+<div class="scene" id="s3">
+  <div class="chapter-label">第14章 · Step 3/4</div>
+  <div class="scene-title">📍 Step 3：位置情報 & Transformerの全体像</div>
+  <div class="scene-desc">
+    Attentionは順序を無視してしまう。そこで<strong>Positional Encoding（位置エンコーディング）</strong>でトークンの位置情報を追加する。<br>
+    さらに複数の処理が積み重なって完成形になる！
+  </div>
+  <div class="stage">
+    <div style="font-size:12px;color:#0891b2;font-weight:800;margin-bottom:6px">📍 Positional Encoding（位置ごとのサイン波パターン）</div>
+    <canvas id="pos-canvas" width="460" height="100" style="width:100%;max-width:460px;border:2px solid #bae6fd;border-radius:10px;margin-bottom:14px"></canvas>
+    <div style="font-size:12px;color:#0891b2;font-weight:800;margin-bottom:8px">🏗️ Transformerブロックの構造（クリックで説明）</div>
+    <div id="tf-blocks">
+      <div class="tf-block" onclick="hlBlock(0)" id="tfb0"><span class="tf-icon">🔤</span><div><div class="tf-name">Token Embedding</div><div class="tf-desc">トークン → 高次元ベクトルに変換</div></div></div>
+      <div class="tf-block" onclick="hlBlock(1)" id="tfb1"><span class="tf-icon">📍</span><div><div class="tf-name">Positional Encoding</div><div class="tf-desc">位置情報をベクトルに加算</div></div></div>
+      <div class="tf-block" onclick="hlBlock(2)" id="tfb2"><span class="tf-icon">👁️</span><div><div class="tf-name">Multi-Head Attention × 12〜96</div><div class="tf-desc">複数の視点で文脈を並列処理</div></div></div>
+      <div class="tf-block" onclick="hlBlock(3)" id="tfb3"><span class="tf-icon">🔄</span><div><div class="tf-name">Feed Forward Network</div><div class="tf-desc">各トークンを独立して変換</div></div></div>
+      <div class="tf-block" onclick="hlBlock(4)" id="tfb4"><span class="tf-icon">📊</span><div><div class="tf-name">Layer Norm + Residual</div><div class="tf-desc">学習を安定させる正規化</div></div></div>
+      <div class="tf-block" onclick="hlBlock(5)" id="tfb5"><span class="tf-icon">🎯</span><div><div class="tf-name">Output (Linear + Softmax)</div><div class="tf-desc">次のトークンの確率分布を出力</div></div></div>
+    </div>
+    <div id="tf-block-detail" class="info-box" style="margin-top:8px;min-height:36px">👆 ブロックをクリックすると詳細が表示されます！</div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<!-- Quiz -->
+<div class="scene" id="sq">
+  <div class="chapter-label">第14章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#e0f2fe,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. Transformerの「Self-Attention」が解決する問題は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">計算速度を上げること</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">各単語が文章全体の他の単語との関係を学ぶこと</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">画像を認識すること</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">データを圧縮すること</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#e0f2fe,#dbeafe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. Positional Encodingが必要な理由は？ 📍</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">計算量を減らすため</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">Self-Attentionは単語の順序を無視するため</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">GPUを使えるようにするため</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">英語以外の言語に対応するため</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第14章 完了！ 🎊</button>
+</div>
+
+<!-- Done -->
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第14章クリア！</h2>
+    <p>Transformerの核心「Self-Attention」の<br>仕組みを掴んだ！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>文章はトークンに分割されて番号化される</li>
+        <li>各トークンは高次元ベクトルに変換（Embedding）</li>
+        <li>Self-Attentionで全単語ペアの関係を計算</li>
+        <li>Q（質問）・K（特徴）・V（情報）の3つのベクトルで実現</li>
+        <li>Positional Encodingで位置情報を付加する</li>
+      </ul>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s0')initIntroTokens();
+  if(id==='s1')tokenize();
+  if(id==='s2')buildAttnMap();
+  if(id==='s3'){drawPosEnc();buildAttnMap();}
+  window.scrollTo(0,0);
+}
+
+// S0: intro tokens
+const SENTENCE=['猫','が','魚','を','食べ','た'];
+const TOKEN_COLORS=['#fce7f3','#e0f2fe','#fef3c7','#f0fdf4','#f5f3ff','#fff7ed'];
+const TOKEN_BORDERS=['#f9a8d4','#7dd3fc','#fde68a','#86efac','#ddd6fe','#fed7aa'];
+const TOKEN_TEXT=['#be185d','#0369a1','#d97706','#16a34a','#7c3aed','#c2410c'];
+
+// attention patterns per token
+const ATTN_PATTERNS={
+  '猫':  [0.6,0.05,0.1,0.05,0.15,0.05],
+  'が':  [0.4,0.4,0.05,0.05,0.05,0.05],
+  '魚':  [0.1,0.05,0.5,0.1,0.2,0.05],
+  'を':  [0.1,0.05,0.4,0.3,0.1,0.05],
+  '食べ':[0.25,0.05,0.25,0.05,0.3,0.1],
+  'た':  [0.1,0.1,0.1,0.1,0.4,0.2],
+};
+
+function initIntroTokens(){
+  const el=document.getElementById('intro-tokens');
+  if(el.children.length)return;
+  SENTENCE.forEach((tok,i)=>{
+    const t=document.createElement('div');
+    t.className='token';
+    t.style=`background:${TOKEN_COLORS[i]};border-color:${TOKEN_BORDERS[i]};color:${TOKEN_TEXT[i]}`;
+    t.textContent=tok;
+    t.onclick=()=>showIntroAttn(tok,i);
+    el.appendChild(t);
+  });
+}
+function showIntroAttn(tok,selIdx){
+  const vis=document.getElementById('intro-attn-vis');
+  const pattern=ATTN_PATTERNS[tok];
+  vis.innerHTML=`<div style="font-size:13px;font-weight:800;color:#0891b2;margin-bottom:10px">「${tok}」が注目している単語：</div>`;
+  vis.innerHTML+=`<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">`;
+  SENTENCE.forEach((s,i)=>{
+    const score=pattern[i];
+    const opacity=0.1+score*0.9;
+    const size=10+score*24;
+    vis.innerHTML+=`<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="width:${size+20}px;height:${size+20}px;border-radius:50%;background:${TOKEN_COLORS[i]};border:3px solid ${TOKEN_BORDERS[i]};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${12+score*8}px;color:${TOKEN_TEXT[i]};opacity:${opacity};transition:all 0.3s">${s}</div>
+      <div style="font-size:11px;font-weight:700;color:#9b8db4">${(score*100).toFixed(0)}%</div>
+    </div>`;
+  });
+  vis.innerHTML+='</div>';
+}
+
+// S1: tokenize
+function tokenize(){
+  const text=document.getElementById('tok-input').value||'The cat sat on the mat';
+  const words=text.split(/\s+/).filter(Boolean);
+  const colors=['#fce7f3','#e0f2fe','#fef3c7','#f0fdf4','#f5f3ff','#fff7ed','#fef2f2','#f0fdf4'];
+  const borders=['#f9a8d4','#7dd3fc','#fde68a','#86efac','#ddd6fe','#fed7aa','#fca5a5','#86efac'];
+  const txtCols=['#be185d','#0369a1','#d97706','#16a34a','#7c3aed','#c2410c','#dc2626','#16a34a'];
+  const result=document.getElementById('tok-result');
+  result.innerHTML='';
+  words.slice(0,12).forEach((w,i)=>{
+    const ci=i%colors.length;
+    const id=1000+i;
+    const el=document.createElement('div');
+    el.style=`display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin:3px`;
+    el.innerHTML=`<div style="padding:5px 10px;border-radius:8px;font-weight:800;font-size:14px;background:${colors[ci]};border:2px solid ${borders[ci]};color:${txtCols[ci]};font-family:monospace">${w}</div><div style="font-size:10px;font-weight:700;color:#9b8db4">ID:${id}</div>`;
+    result.appendChild(el);
+  });
+  // embedding vis
+  const emb=document.getElementById('embed-vis');
+  emb.innerHTML='<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">';
+  words.slice(0,6).forEach((w,i)=>{
+    const ci=i%colors.length;
+    let row=`<div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="font-size:11px;font-weight:800;color:${txtCols[ci]}">${w}</div>`;
+    row+=`<div style="display:flex;flex-direction:column;gap:2px">`;
+    for(let d=0;d<8;d++){
+      const v=Math.sin((i+1)*(d+1)*0.8+i*0.3);
+      const intensity=Math.abs(v);
+      const col=v>0?`rgba(8,145,178,${intensity*0.8})`:`rgba(236,72,153,${intensity*0.8})`;
+      row+=`<div style="width:28px;height:10px;background:${col};border-radius:3px;font-size:7px;color:white;display:flex;align-items:center;justify-content:center;font-weight:700">${v.toFixed(1)}</div>`;
+    }
+    row+=`<div style="font-size:8px;color:#9b8db4">...768d</div></div></div>`;
+    emb.innerHTML+=row;
+  });
+  emb.innerHTML+='</div>';
+}
+
+// S2: attention heatmap
+const ATTN_WORDS=['The','cat','sat','on','the','mat'];
+let attnMatrix=[];
+function buildAttnMap(){
+  // generate semi-realistic attention
+  attnMatrix=ATTN_WORDS.map((_,r)=>{
+    const row=ATTN_WORDS.map((_,c)=>Math.random()*0.5+(r===c?0.3:0)+(Math.abs(r-c)<2?0.2:0));
+    const sum=row.reduce((a,b)=>a+b,0);
+    return row.map(v=>v/sum);
+  });
+  renderAttn();
+}
+function randomizeAttn(){buildAttnMap();}
+function renderAttn(){
+  const el=document.getElementById('attn-map');
+  const n=ATTN_WORDS.length;
+  el.style=`display:grid;grid-template-columns:repeat(${n+1},40px);gap:3px`;
+  el.innerHTML='';
+  // header row
+  el.appendChild(Object.assign(document.createElement('div'),{style:'width:40px;height:40px'}));
+  ATTN_WORDS.forEach(w=>{
+    const h=document.createElement('div');
+    h.style='width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0369a1;font-family:monospace';
+    h.textContent=w;el.appendChild(h);
+  });
+  attnMatrix.forEach((row,ri)=>{
+    const lbl=document.createElement('div');
+    lbl.style='width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0369a1;font-family:monospace';
+    lbl.textContent=ATTN_WORDS[ri];el.appendChild(lbl);
+    row.forEach((v,ci)=>{
+      const cell=document.createElement('div');
+      cell.className='attn-cell';
+      const alpha=v;
+      cell.style.background=`rgba(8,145,178,${alpha*0.9})`;
+      cell.style.color=v>0.4?'white':'#0369a1';
+      cell.textContent=(v*100).toFixed(0)+'%';
+      cell.title=`${ATTN_WORDS[ri]} → ${ATTN_WORDS[ci]}: ${(v*100).toFixed(1)}%`;
+      el.appendChild(cell);
+    });
+  });
+}
+
+// S3: positional encoding
+function drawPosEnc(){
+  const canvas=document.getElementById('pos-canvas');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#f0f9ff';ctx.fillRect(0,0,W,H);
+  const nPos=12,nDim=16;
+  const cellW=(W-60)/nPos,cellH=(H-20)/nDim;
+  for(let pos=0;pos<nPos;pos++){
+    for(let dim=0;dim<nDim;dim++){
+      const v=dim%2===0
+        ? Math.sin(pos/Math.pow(10000,dim/nDim))
+        : Math.cos(pos/Math.pow(10000,(dim-1)/nDim));
+      const norm=(v+1)/2;
+      ctx.fillStyle=`rgba(8,145,178,${norm})`;
+      ctx.fillRect(60+pos*cellW,10+dim*cellH,cellW-1,cellH-1);
+    }
+  }
+  // labels
+  ctx.fillStyle='#0369a1';ctx.font='bold 9px monospace';ctx.textAlign='center';
+  for(let pos=0;pos<nPos;pos++){ctx.fillText('pos'+pos,60+pos*cellW+cellW/2,H-2);}
+  ctx.save();ctx.rotate(-Math.PI/2);ctx.font='9px monospace';
+  ctx.fillText('dimension →',-(H/2),12);ctx.restore();
+}
+
+const TF_DETAILS=[
+  'Token Embedding: 各トークンID → 768〜4096次元のベクトルに変換。似た意味の単語は近いベクトルになる。',
+  'Positional Encoding: 位置ごとに異なるサイン波パターンを加算。「2番目の単語」という情報を埋め込む。',
+  'Multi-Head Attention: 複数の「視点」で同時にSelf-Attentionを実行。各ヘッドが異なるパターンを担当する。',
+  'Feed Forward Network: 各トークンを独立して変換する全結合層。ReLUなどの活性化関数で非線形性を追加。',
+  'Layer Norm + Residual: 勾配消失を防ぐResidual接続と、学習を安定させるLayer Normalization。',
+  'Output Layer: 最終的な埋め込みを語彙サイズ（10万次元）に変換→Softmaxで確率分布に。次のトークンを予測！',
+];
+function hlBlock(i){
+  document.querySelectorAll('.tf-block').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tfb'+i).classList.add('active');
+  document.getElementById('tf-block-detail').innerHTML=`<strong style="color:#0891b2">▶ ${document.getElementById('tfb'+i).querySelector('.tf-name').textContent}</strong><br>${TF_DETAILS[i]}`;
+}
+
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！各単語が文章全体の他の単語との関係を同時に計算できる — これがTransformerの革命！':'❌ 不正解。Self-Attentionは各単語が他の全単語との関連度を計算する仕組みです。';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！Self-Attentionは全トークンを並列処理するため順序情報がない。Positional Encodingで補完する！':'❌ 不正解。Attentionは順序を無視してしまうので、位置情報を別途加える必要があります。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+
+initIntroTokens();
+</script>
+</body>
+</html>

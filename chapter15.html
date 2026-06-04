@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第15章：LLMの仕組み — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#7c3aed;--accent2:#a78bfa;}
+
+/* Next token prediction */
+.token-pred{
+  display:inline-flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 14px;border-radius:10px;border:2px solid;cursor:pointer;
+  transition:all 0.2s;margin:4px;font-family:monospace;
+}
+.token-pred:hover{transform:translateY(-2px)}
+.token-pred .tok-word{font-size:15px;font-weight:900}
+.token-pred .tok-prob{font-size:11px;font-weight:700}
+
+/* Probability bars */
+.prob-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.prob-bar-label{font-family:monospace;font-weight:800;font-size:13px;min-width:80px;color:#2d2040}
+.prob-bar-track{flex:1;height:20px;background:#f3f4f6;border-radius:10px;overflow:hidden}
+.prob-bar-fill{height:100%;border-radius:10px;transition:width 0.5s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;font-weight:800;color:white}
+.prob-pct{font-family:monospace;font-size:12px;font-weight:800;color:#7c3aed;min-width:40px;text-align:right}
+
+/* Temperature */
+.temp-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:2px solid;font-weight:800;font-size:13px;cursor:pointer;transition:all 0.2s;margin:4px}
+.temp-pill:hover{transform:scale(1.05)}
+.temp-pill.active{box-shadow:0 0 0 3px rgba(124,58,237,0.3)}
+
+/* Context window */
+.ctx-token{display:inline-block;padding:4px 8px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:700;margin:2px;border:2px solid}
+
+/* RLHF steps */
+.rlhf-step{background:white;border:2px solid #ede9fe;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:all 0.4s;opacity:0.4}
+.rlhf-step.show{opacity:1}
+.rlhf-icon{font-size:24px}
+.rlhf-title{font-size:14px;font-weight:800;color:#7c3aed}
+.rlhf-sub{font-size:12px;color:#9b8db4}
+
+/* Chat demo */
+.chat-msg{padding:10px 14px;border-radius:12px;max-width:85%;font-size:14px;line-height:1.6;margin-bottom:8px;animation:popIn 0.3s cubic-bezier(.34,1.56,.64,1)}
+.chat-user{background:#ede9fe;color:#4c1d95;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-ai{background:white;border:2px solid #ede9fe;color:#2d2040;align-self:flex-start;border-bottom-left-radius:4px}
+.chat-area{display:flex;flex-direction:column;gap:4px;min-height:120px;max-height:200px;overflow-y:auto;padding:8px;background:#faf7ff;border:2px solid #ede9fe;border-radius:12px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="app">
+
+<!-- S0: Intro -->
+<div class="scene active" id="s0">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+  <div class="chapter-label">第15章 · LLMの仕組み</div>
+  <div class="scene-title">🤖 ChatGPT はどうやって文章を生成する？</div>
+  <div class="scene-desc">
+    <strong>LLM（大規模言語モデル）</strong>は数千億のパラメータを持つ巨大なTransformer。<br>
+    その本質は驚くほどシンプル：<strong>「次に来る単語を予測する」</strong>を繰り返すだけ！<br>
+    でもそれだけで、なぜこんなに賢いのか？謎を解こう 🔍
+  </div>
+  <div class="stage" style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div style="background:white;border:2px solid #ede9fe;border-radius:14px;padding:16px 20px;width:100%;max-width:480px">
+      <div style="font-size:14px;font-weight:700;color:#4c1d95;margin-bottom:10px">「The quick brown fox」の次の単語は？</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center" id="intro-preds"></div>
+      <div style="margin-top:12px;font-size:12px;color:#9b8db4;text-align:center">👆 クリックして選ぶと続きが生成される！</div>
+    </div>
+    <div id="generated-text" style="background:#f5f3ff;border:2px solid #ddd6fe;border-radius:10px;padding:12px;width:100%;max-width:480px;font-family:monospace;font-size:14px;font-weight:700;color:#4c1d95;min-height:36px;line-height:1.8">The quick brown fox</div>
+  </div>
+  <button class="btn-next" onclick="go('s1')">Step 1：次トークン予測 🎯</button>
+</div>
+
+<!-- S1: Next Token Prediction -->
+<div class="scene" id="s1">
+  <div class="chapter-label">第15章 · Step 1/4</div>
+  <div class="scene-title">🎯 Step 1：次のトークンを予測する確率分布</div>
+  <div class="scene-desc">
+    LLMは入力テキスト全体を見て、<strong>次のトークンの確率分布</strong>を出力する。<br>
+    語彙全体（10万語）に対して確率が割り当てられ、最も確率が高い（or ランダムにサンプル）単語が選ばれる！
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;color:#9b8db4;font-weight:700;margin-bottom:10px">入力文脈: 「今日の天気は」 → 次の単語の確率は？</div>
+    <div id="prob-bars" style="margin-bottom:14px"></div>
+    <div style="font-size:12px;color:#7c3aed;font-weight:800;margin-bottom:8px">🎲 Temperature（創造性パラメータ）を変えてみよう</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="temp-pill" id="tp0" style="border-color:#3b82f6;color:#1d4ed8;background:#eff6ff" onclick="setTemp(0.1,'tp0')">🥶 0.1 — 確定的</div>
+      <div class="temp-pill active" id="tp1" style="border-color:#7c3aed;color:#4c1d95;background:#f5f3ff" onclick="setTemp(1.0,'tp1')">🌡️ 1.0 — バランス</div>
+      <div class="temp-pill" id="tp2" style="border-color:#ef4444;color:#dc2626;background:#fef2f2" onclick="setTemp(2.0,'tp2')">🔥 2.0 — 創造的</div>
+    </div>
+    <div id="temp-result" class="info-box" style="min-height:44px"></div>
+    <div class="info-box" style="margin-top:10px">
+      💡 <strong>Temperature = 0.1</strong>: 毎回ほぼ同じ答え（事実確認に向く）<br>
+      <strong>Temperature = 1.0</strong>: 自然な多様性<br>
+      <strong>Temperature = 2.0</strong>: 驚くような（時に意味不明な）回答
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s2')">Step 2：スケールの力 📏</button>
+</div>
+
+<!-- S2: Scale -->
+<div class="scene" id="s2">
+  <div class="chapter-label">第15章 · Step 2/4</div>
+  <div class="scene-title">📏 Step 2：スケールが全てを変える</div>
+  <div class="scene-desc">
+    LLMが賢い理由の一つは<strong>圧倒的なスケール</strong>。<br>
+    モデルが大きくなるほど、<strong>予測精度が急激に向上</strong>する（スケーリング則）。<br>
+    そして大量データで学習することで、知識が「記憶」される！
+  </div>
+  <div class="stage">
+    <div style="font-size:13px;font-weight:800;color:#7c3aed;margin-bottom:10px">代表的なLLMのスケール比較</div>
+    <div id="scale-viz" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div style="margin-top:14px;font-size:13px;font-weight:800;color:#7c3aed;margin-bottom:8px">コンテキストウィンドウ — LLMが「一度に覚えられる」長さ</div>
+    <div style="background:white;border:2px solid #ede9fe;border-radius:12px;padding:14px">
+      <div id="ctx-window" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px"></div>
+      <div style="font-size:12px;color:#9b8db4">
+        GPT-4: 128,000トークン ≈ 論文100本分<br>
+        Claude 3: 200,000トークン ≈ 本1〜2冊分
+      </div>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('s3')">Step 3：学習から対話へ 🎓</button>
+</div>
+
+<!-- S3: RLHF + Chat -->
+<div class="scene" id="s3">
+  <div class="chapter-label">第15章 · Step 3/4</div>
+  <div class="scene-title">🎓 Step 3：どうして「役に立つ」AIになるの？</div>
+  <div class="scene-desc">
+    素の言語モデルは「次の単語予測器」にすぎない。<br>
+    <strong>RLHF（人間のフィードバックによる強化学習）</strong>で「人間に役立つ」回答をするよう調整する。<br>
+    これがChatGPTやClaudeが会話できる理由！
+  </div>
+  <div class="stage">
+    <div style="font-size:12px;color:#7c3aed;font-weight:800;margin-bottom:10px">🏋️ 学習の3ステップ（クリックで進む）</div>
+    <div id="rlhf-steps">
+      <div class="rlhf-step show" id="rs0"><span class="rlhf-icon">📚</span><div><div class="rlhf-title">① 事前学習（Pre-training）</div><div class="rlhf-sub">インターネット上のテキスト数兆トークンで「次の単語予測」を学習</div></div></div>
+      <div class="rlhf-step" id="rs1"><span class="rlhf-icon">🎭</span><div><div class="rlhf-title">② 指示学習（Supervised Fine-tuning）</div><div class="rlhf-sub">人間が書いた「良い回答」のサンプルでファインチューニング</div></div></div>
+      <div class="rlhf-step" id="rs2"><span class="rlhf-icon">👍</span><div><div class="rlhf-title">③ 報酬モデル学習（Reward Model）</div><div class="rlhf-sub">人間が複数の回答をランキング → 「良さ」を予測する報酬モデルを作成</div></div></div>
+      <div class="rlhf-step" id="rs3"><span class="rlhf-icon">🚀</span><div><div class="rlhf-title">④ 強化学習（PPO）</div><div class="rlhf-sub">報酬モデルのスコアを最大化するよう言語モデルをさらに調整</div></div></div>
+    </div>
+    <button class="btn-action" style="margin-top:12px;margin-bottom:16px" onclick="showRLHF()">▶ 学習プロセスを見る</button>
+    <div style="font-size:12px;color:#7c3aed;font-weight:800;margin-bottom:8px">💬 実際に質問してみよう（LLMのデモ）</div>
+    <div class="chat-area" id="chat-area"></div>
+    <div style="display:flex;gap:8px">
+      <input id="chat-input" type="text" placeholder="質問を入力... (例: 空はなぜ青いの？)"
+        style="flex:1;padding:10px 14px;border:2px solid #ddd6fe;border-radius:10px;font-size:13px;outline:none;font-family:inherit"
+        onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn-action" onclick="sendChat()" style="padding:10px 16px">送信</button>
+    </div>
+  </div>
+  <button class="btn-next" onclick="go('sq')">理解度チェック 📝</button>
+</div>
+
+<!-- Quiz -->
+<div class="scene" id="sq">
+  <div class="chapter-label">第15章 · クイズ</div>
+  <div class="scene-title">📝 理解度チェック！</div>
+  <div id="q1-wrap">
+    <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q1. LLMの基本的な動作原理は？ 🤔</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ1(this,'a')">質問に対して辞書を引く</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'b')">次のトークン（単語）を繰り返し予測する</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'c')">インターネットを検索する</div>
+      <div class="quiz-opt" onclick="checkQ1(this,'d')">人間の専門家に転送する</div>
+    </div>
+    <div class="feedback" id="fb1"></div>
+  </div>
+  <div id="q2-wrap" style="display:none;margin-top:24px">
+    <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:800;font-size:15px">Q2. Temperatureパラメータを高くすると？ 🌡️</div>
+    <div class="quiz-options">
+      <div class="quiz-opt" onclick="checkQ2(this,'a')">計算が速くなる</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'b')">回答がより確定的・保守的になる</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'c')">回答がより多様で創造的（ランダム）になる</div>
+      <div class="quiz-opt" onclick="checkQ2(this,'d')">モデルのサイズが大きくなる</div>
+    </div>
+    <div class="feedback" id="fb2"></div>
+  </div>
+  <button class="btn-next" id="btn-q-next" onclick="go('sdone')" disabled style="margin-top:24px">第15章 完了！ 🎊</button>
+</div>
+
+<!-- Done -->
+<div class="scene" id="sdone">
+  <div class="done-screen">
+    <div class="trophy">🎉</div>
+    <h2>第15章クリア！</h2>
+    <p>LLMの仕組みを根本から理解した！<br>これで第13〜15章の「AI三部作」完成！</p>
+    <div class="summary-box">
+      <h4>📚 今日学んだこと</h4>
+      <ul style="padding-left:20px">
+        <li>LLMの本質は「次のトークン予測」の繰り返し</li>
+        <li>Temperatureで出力のランダム性を制御できる</li>
+        <li>パラメータ数が多いほど能力が向上（スケーリング則）</li>
+        <li>コンテキストウィンドウが「一度に処理できる長さ」</li>
+        <li>RLHFで人間のフィードバックから「役立つAI」に調整</li>
+      </ul>
+    </div>
+    <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:2px solid #ddd6fe;border-radius:12px;padding:16px;margin-bottom:24px;text-align:left">
+      <div style="font-size:14px;font-weight:800;color:#7c3aed;margin-bottom:8px">🚀 CS Adventure — 全15章完走おめでとう！</div>
+      <div style="font-size:13px;color:#6b5f80;line-height:1.8">
+        スイッチ → マトリクス → CPU → メモリ → ネットワーク → ブラウザ → AI まで、コンピュータの「なぜ？」を全部体験した。これを知っているあなたは、もうただのユーザーじゃない！
+      </div>
+    </div>
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ 🏠</button></a>
+  </div>
+</div>
+</div>
+
+<script>
+const scenes=['s0','s1','s2','s3','sq','sdone'];
+let cur='s0';
+function go(id){
+  document.getElementById(cur).classList.remove('active');
+  document.getElementById(id).classList.add('active');
+  cur=id;
+  const idx=scenes.indexOf(id);
+  document.getElementById('progress-fill').style.width=(idx/(scenes.length-1)*100)+'%';
+  if(id==='s0')initIntro();
+  if(id==='s1')initProbs();
+  if(id==='s2')initScale();
+  window.scrollTo(0,0);
+}
+
+// S0: next token demo
+const CONTINUATIONS=[
+  {word:'jumps',prob:0.38,color:'#7c3aed',border:'#ddd6fe'},
+  {word:'runs',prob:0.24,color:'#0891b2',border:'#bae6fd'},
+  {word:'eats',prob:0.18,color:'#16a34a',border:'#bbf7d0'},
+  {word:'sleeps',prob:0.12,color:'#d97706',border:'#fde68a'},
+  {word:'flies',prob:0.08,color:'#dc2626',border:'#fca5a5'},
+];
+let genText='The quick brown fox';
+function initIntro(){
+  const el=document.getElementById('intro-preds');
+  el.innerHTML='';
+  CONTINUATIONS.forEach(c=>{
+    const div=document.createElement('div');
+    div.className='token-pred';
+    div.style=`background:white;border-color:${c.border};color:${c.color}`;
+    div.innerHTML=`<span class="tok-word">${c.word}</span><span class="tok-prob" style="color:${c.color}">${(c.prob*100).toFixed(0)}%</span>`;
+    div.onclick=()=>pickToken(c.word);
+    el.appendChild(div);
+  });
+}
+function pickToken(word){
+  genText+=' '+word;
+  document.getElementById('generated-text').textContent=genText;
+  // regenerate new predictions
+  const newCont=[
+    {word:'over',prob:0.35,color:'#7c3aed',border:'#ddd6fe'},
+    {word:'quickly',prob:0.28,color:'#0891b2',border:'#bae6fd'},
+    {word:'lazily',prob:0.18,color:'#16a34a',border:'#bbf7d0'},
+    {word:'and',prob:0.12,color:'#d97706',border:'#fde68a'},
+    {word:'away',prob:0.07,color:'#dc2626',border:'#fca5a5'},
+  ];
+  const el=document.getElementById('intro-preds');
+  el.innerHTML='';
+  newCont.forEach(c=>{
+    const div=document.createElement('div');
+    div.className='token-pred';
+    div.style=`background:white;border-color:${c.border};color:${c.color}`;
+    div.innerHTML=`<span class="tok-word">${c.word}</span><span class="tok-prob" style="color:${c.color}">${(c.prob*100).toFixed(0)}%</span>`;
+    div.onclick=()=>pickToken(c.word);
+    el.appendChild(div);
+  });
+}
+
+// S1: probability bars
+const BASE_PROBS=[
+  {word:'晴れです',base:0.38},{word:'雨です',base:0.22},{word:'曇りです',base:0.18},
+  {word:'良いです',base:0.12},{word:'最高です',base:0.06},{word:'不明です',base:0.04},
+];
+const COLORS=['#7c3aed','#0891b2','#16a34a','#d97706','#dc2626','#9333ea'];
+let currentTemp=1.0;
+
+function softmax(logits,temp){
+  const scaled=logits.map(l=>l/temp);
+  const max=Math.max(...scaled);
+  const exps=scaled.map(l=>Math.exp(l-max));
+  const sum=exps.reduce((a,b)=>a+b,0);
+  return exps.map(e=>e/sum);
+}
+function initProbs(){renderProbs(1.0);}
+function renderProbs(temp){
+  const logits=BASE_PROBS.map(p=>Math.log(p.base));
+  const probs=softmax(logits,temp);
+  const el=document.getElementById('prob-bars');
+  el.innerHTML='';
+  probs.forEach((p,i)=>{
+    el.innerHTML+=`<div class="prob-bar-row">
+      <span class="prob-bar-label">${BASE_PROBS[i].word}</span>
+      <div class="prob-bar-track"><div class="prob-bar-fill" style="width:${p*100}%;background:${COLORS[i]}">${p>0.1?(p*100).toFixed(1)+'%':''}</div></div>
+      <span class="prob-pct">${(p*100).toFixed(1)}%</span>
+    </div>`;
+  });
+}
+function setTemp(val,id){
+  currentTemp=val;
+  document.querySelectorAll('.temp-pill').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  renderProbs(val);
+  const msgs={
+    0.1:'🥶 Temperature 0.1: 最も確率の高い「晴れです」を毎回選ぶ。決定論的。',
+    1.0:'🌡️ Temperature 1.0: 標準的な多様性。自然な会話に向く。',
+    2.0:'🔥 Temperature 2.0: 確率が均一化され、予測不能な単語が選ばれやすくなる！',
+  };
+  document.getElementById('temp-result').textContent=msgs[val]||'';
+}
+
+// S2: scale viz
+const MODELS=[
+  {name:'GPT-2 (2019)',params:'1.5B',data:'40GB',score:62,color:'#bae6fd'},
+  {name:'GPT-3 (2020)',params:'175B',data:'570GB',score:73,color:'#93c5fd'},
+  {name:'GPT-3.5 (2022)',params:'175B+RLHF',data:'数TB',score:85,color:'#818cf8'},
+  {name:'GPT-4 (2023)',params:'~1.8T(推定)',data:'数十TB',score:95,color:'#a78bfa'},
+  {name:'Claude 3 Opus',params:'非公開',data:'数十TB',score:97,color:'#c084fc'},
+];
+function initScale(){
+  const el=document.getElementById('scale-viz');
+  el.innerHTML='';
+  MODELS.forEach((m,i)=>{
+    setTimeout(()=>{
+      el.innerHTML+=`<div style="display:flex;align-items:center;gap:10px">
+        <div style="min-width:140px;font-size:12px;font-weight:700;color:#2d2040">${m.name}</div>
+        <div style="flex:1;height:22px;background:#f3f4f6;border-radius:11px;overflow:hidden">
+          <div style="width:${m.score}%;height:100%;background:${m.color};border-radius:11px;transition:width 0.8s;display:flex;align-items:center;padding-left:8px">
+            <span style="font-size:10px;font-weight:800;color:white">${m.params}</span>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#9b8db4;min-width:30px">${m.score}%</div>
+      </div>`;
+    },i*150);
+  });
+  // context window demo
+  const ctx=document.getElementById('ctx-window');
+  const ctxColors=['#f5f3ff','#eff6ff','#f0fdf4','#fffbeb','#fef2f2'];
+  const ctxBorders=['#ddd6fe','#bae6fd','#bbf7d0','#fde68a','#fca5a5'];
+  const ctxTexts=['#7c3aed','#0369a1','#16a34a','#d97706','#dc2626'];
+  const words=['プロンプト','文脈1','文脈2','...','4万語前','...','直前の文'];
+  words.forEach((w,i)=>{
+    const ci=i%5;
+    const el=document.createElement('span');
+    el.className='ctx-token';
+    el.style=`background:${ctxColors[ci]};border-color:${ctxBorders[ci]};color:${ctxTexts[ci]}`;
+    el.textContent=w;
+    ctx.appendChild(el);
+  });
+}
+
+// S3: RLHF + chat
+let rlhfStep=0;
+function showRLHF(){
+  if(rlhfStep>=4)return;
+  document.getElementById('rs'+rlhfStep).classList.add('show');
+  rlhfStep++;
+  if(rlhfStep<4)setTimeout(showRLHF,600);
+}
+
+const CHAT_RESPONSES={
+  '空はなぜ青いの': '空が青い理由は「レイリー散乱」という現象です！ ☀️\n太陽光はすべての色を含みますが、大気の分子は青い光（波長が短い）を他の色より多く散乱させます。その散乱した青い光が空全体から来るため、空が青く見えます！🌤️',
+  '地球の大きさ': '地球の直径は約12,742kmです！\n🌍 赤道半径: 約6,378km\n南北: 約6,357km（少し平たい）\n地球の表面積は約5億km²で、そのうち約70%が海です！🌊',
+  'default': '面白い質問ですね！🤔\nLLMとして答えるなら、私はTransformerアーキテクチャで動いていて、大量のテキストから「次のトークン予測」を学習しました。\nあなたの質問から文脈を理解して、最も適切な回答を生成しています！✨',
+};
+function sendChat(){
+  const input=document.getElementById('chat-input');
+  const text=input.value.trim();
+  if(!text)return;
+  const area=document.getElementById('chat-area');
+  // user
+  const userMsg=document.createElement('div');
+  userMsg.className='chat-msg chat-user';
+  userMsg.textContent=text;
+  area.appendChild(userMsg);
+  input.value='';
+  area.scrollTop=area.scrollHeight;
+  // AI typing
+  const aiMsg=document.createElement('div');
+  aiMsg.className='chat-msg chat-ai';
+  aiMsg.textContent='💭 考え中...';
+  area.appendChild(aiMsg);
+  area.scrollTop=area.scrollHeight;
+  setTimeout(()=>{
+    const key=Object.keys(CHAT_RESPONSES).find(k=>text.includes(k))||'default';
+    const response=CHAT_RESPONSES[key];
+    aiMsg.textContent='';
+    let i=0;
+    function type(){
+      if(i<response.length){
+        aiMsg.textContent+=response[i++];
+        area.scrollTop=area.scrollHeight;
+        setTimeout(type,18);
+      }
+    }
+    type();
+  },800);
+}
+
+let q1done=false,q2done=false;
+function checkQ1(el,ans){
+  if(q1done)return;q1done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='b';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[1].classList.add('correct');
+  document.getElementById('fb1').textContent=ok?'✅ 正解！LLMは「次のトークン予測」を繰り返すシンプルな仕組みから驚くべき知性が生まれる！':'❌ 不正解。LLMの本質は「次のトークンを繰り返し予測する」こと。辞書検索でも検索エンジンでもない！';
+  document.getElementById('fb1').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('q2-wrap').style.display='block',700);
+}
+function checkQ2(el,ans){
+  if(q2done)return;q2done=true;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(o=>o.style.pointerEvents='none');
+  const ok=ans==='c';el.classList.add(ok?'correct':'wrong');
+  if(!ok)el.parentElement.querySelectorAll('.quiz-opt')[2].classList.add('correct');
+  document.getElementById('fb2').textContent=ok?'✅ 正解！Temperatureが高いほど確率分布が均一化され、多様で創造的（ランダム）な出力になる！':'❌ 不正解。Temperatureを高くすると回答が「より多様で創造的（ランダム）」になります。';
+  document.getElementById('fb2').className='feedback show '+(ok?'correct':'wrong');
+  setTimeout(()=>document.getElementById('btn-q-next').disabled=false,800);
+}
+
+initIntro();
+</script>
+</body>
+</html>
