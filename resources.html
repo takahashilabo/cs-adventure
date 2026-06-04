@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>次のステップ — CS Adventure</title>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{--accent:#7c3aed;--accent2:#a78bfa;}
+
+/* Chapter section */
+.chapter-section{
+  background:white;border-radius:20px;padding:24px;margin-bottom:24px;
+  box-shadow:0 4px 20px rgba(100,80,200,0.08);
+  border:2px solid var(--border);
+  scroll-margin-top:80px;
+}
+.chapter-section-header{
+  display:flex;align-items:center;gap:14px;margin-bottom:20px;
+  padding-bottom:14px;border-bottom:2px solid var(--border);
+}
+.chapter-icon{font-size:32px}
+.chapter-num{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--ch-accent,#7c3aed);margin-bottom:2px}
+.chapter-name{font-size:18px;font-weight:900;color:var(--text)}
+
+/* Resource cards */
+.resources-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.resource-card{
+  background:var(--surface2);border:2px solid var(--border);border-radius:14px;
+  padding:14px 16px;transition:all 0.2s;position:relative;
+  display:flex;flex-direction:column;gap:6px;
+}
+.resource-card:hover{
+  border-color:var(--ch-accent,#7c3aed);
+  box-shadow:0 6px 20px rgba(100,80,200,0.12);
+  transform:translateY(-2px);
+}
+.resource-type{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  padding:2px 8px;border-radius:20px;width:fit-content;margin-bottom:2px;
+}
+.type-book{background:#fef3c7;color:#d97706}
+.type-site{background:#dbeafe;color:#1d4ed8}
+.type-video{background:#fce7f3;color:#be185d}
+.type-course{background:#dcfce7;color:#15803d}
+.type-paper{background:#f5f3ff;color:#6d28d9}
+.resource-title{font-size:14px;font-weight:800;color:var(--text);line-height:1.3}
+.resource-author{font-size:12px;color:var(--text2);font-weight:600}
+.resource-desc{font-size:12px;color:var(--text2);line-height:1.6;flex:1}
+.resource-link{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:12px;font-weight:800;color:var(--ch-accent,#7c3aed);
+  text-decoration:none;margin-top:4px;
+}
+.resource-link:hover{text-decoration:underline}
+.resource-level{
+  display:inline-block;font-size:10px;font-weight:700;
+  padding:1px 7px;border-radius:20px;margin-top:2px;width:fit-content;
+}
+.lvl-beginner{background:#f0fdf4;color:#16a34a;border:1px solid #86efac}
+.lvl-intermediate{background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd}
+.lvl-advanced{background:#fef2f2;color:#dc2626;border:1px solid #fca5a5}
+
+/* TOC */
+.toc{
+  background:white;border:2px solid var(--border);border-radius:16px;
+  padding:20px;margin-bottom:32px;box-shadow:0 4px 16px rgba(100,80,200,0.06);
+}
+.toc h2{font-size:16px;font-weight:800;color:var(--text);margin-bottom:14px}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.toc-item{
+  display:flex;align-items:center;gap:8px;padding:7px 12px;
+  border-radius:8px;text-decoration:none;color:var(--text2);
+  font-size:13px;font-weight:700;transition:all 0.2s;border:1.5px solid transparent;
+}
+.toc-item:hover{background:var(--surface2);border-color:var(--border);color:var(--text)}
+.toc-num{font-size:10px;font-weight:800;opacity:0.6;min-width:24px}
+
+/* Page header */
+.page-header{
+  background:linear-gradient(135deg,#f0f0ff 0%,#fce7f3 50%,#f0fdf4 100%);
+  border-radius:20px;padding:32px 28px;margin-bottom:28px;text-align:center;
+  border:2px solid var(--border);
+}
+.page-title{font-size:32px;font-weight:900;background:linear-gradient(135deg,#7c3aed,#ec4899,#0891b2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.page-sub{font-size:15px;color:var(--text2);line-height:1.7}
+
+/* Sticky TOC */
+#top-nav{
+  position:sticky;top:6px;z-index:50;
+  background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);
+  border:2px solid var(--border);border-radius:14px;
+  padding:10px 16px;margin-bottom:20px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+</style>
+</head>
+<body>
+<div id="app" style="padding:20px">
+
+<div style="margin-bottom:16px">
+  <a href="index.html" class="back-link">← チャプター一覧</a>
+</div>
+
+<div class="page-header">
+  <div style="font-size:48px;margin-bottom:8px">📚</div>
+  <div class="page-title">次のステップ</div>
+  <div class="page-sub">
+    CS Adventure の各章を終えたあと、さらに深く学ぶための<br>
+    本・サイト・動画・コースをまとめました。<br>
+    <strong>興味が湧いた章から、自分のペースで探索しよう！</strong>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>📋 目次</h2>
+  <div class="toc-grid">
+    <a href="#ch1"  class="toc-item"><span class="toc-num">01</span>⚙️ プログラムの旅</a>
+    <a href="#ch2"  class="toc-item"><span class="toc-num">02</span>⌨️ キーボードの秘密</a>
+    <a href="#ch3"  class="toc-item"><span class="toc-num">03</span>🖥️ ディスプレイの魔法</a>
+    <a href="#ch4"  class="toc-item"><span class="toc-num">04</span>🌐 ネットワークの旅</a>
+    <a href="#ch5"  class="toc-item"><span class="toc-num">05</span>📝 テキストエディタ</a>
+    <a href="#ch6"  class="toc-item"><span class="toc-num">06</span>🌏 ブラウザの仕組み</a>
+    <a href="#ch7"  class="toc-item"><span class="toc-num">07</span>🔊 音の仕組み</a>
+    <a href="#ch8"  class="toc-item"><span class="toc-num">08</span>💾 ファイルシステム</a>
+    <a href="#ch9"  class="toc-item"><span class="toc-num">09</span>🔐 暗号とHTTPS</a>
+    <a href="#ch10" class="toc-item"><span class="toc-num">10</span>🧠 OSとプロセス</a>
+    <a href="#ch11" class="toc-item"><span class="toc-num">11</span>🗄️ データベース</a>
+    <a href="#ch12" class="toc-item"><span class="toc-num">12</span>🎮 GPUとグラフィックス</a>
+    <a href="#ch13" class="toc-item"><span class="toc-num">13</span>🧪 深層学習の基礎</a>
+    <a href="#ch14" class="toc-item"><span class="toc-num">14</span>⚡ トランスフォーマー</a>
+    <a href="#ch15" class="toc-item"><span class="toc-num">15</span>🤖 LLMの仕組み</a>
+  </div>
+</div>
+
+<!-- ===== CH1 ===== -->
+<div class="chapter-section" id="ch1" style="--ch-accent:#7c3aed">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">⚙️</span>
+    <div><div class="chapter-num">第1章</div><div class="chapter-name">プログラムの旅</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">プログラムはなぜ動くのか</div>
+      <div class="resource-author">矢沢久雄 著（日経BP）</div>
+      <div class="resource-desc">CPUがどう動くか、メモリをどう使うかを日本語でわかりやすく解説。第1章の内容をより深く学ぶのに最適な一冊。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">コンピュータの構成と設計（Patterson & Hennessy）</div>
+      <div class="resource-author">David Patterson / John Hennessy</div>
+      <div class="resource-desc">通称「パタへネ本」。CPU設計・命令セット・パイプラインを本格的に学ぶ教科書。大学のCS学科の定番。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Compiler Explorer（godbolt.org）</div>
+      <div class="resource-desc">自分のコードが実際にどんなアセンブリ命令に変換されるかをリアルタイムで確認できる神ツール。C/Rust/Goなど多言語対応。</div>
+      <a class="resource-link" href="https://godbolt.org" target="_blank">godbolt.org →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-course">🎓 コース</div>
+      <div class="resource-title">Nand to Tetris</div>
+      <div class="resource-desc">論理ゲートからOSまでコンピュータを自分で作るオンラインコース。Courseraとnand2tetris.orgで無料公開。CS教育の傑作。</div>
+      <a class="resource-link" href="https://www.nand2tetris.org" target="_blank">nand2tetris.org →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH2 ===== -->
+<div class="chapter-section" id="ch2" style="--ch-accent:#e11d48">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">⌨️</span>
+    <div><div class="chapter-num">第2章</div><div class="chapter-name">キーボードの秘密</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">QMK Firmware ドキュメント</div>
+      <div class="resource-desc">自作キーボードファームウェアのオープンソースプロジェクト。マトリクス走査・キーマップ・Debounceの実装コードを実際に読める。</div>
+      <a class="resource-link" href="https://docs.qmk.fm" target="_blank">docs.qmk.fm →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Deskthority Wiki</div>
+      <div class="resource-desc">キーボードのスイッチ・メカニズム・歴史を詳しく解説するwiki。メンブレン・メカニカル・静電容量の違いが写真つきで理解できる。</div>
+      <a class="resource-link" href="https://deskthority.net/wiki" target="_blank">deskthority.net →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">インターフェースデザインの心理学</div>
+      <div class="resource-author">Susan Weinschenk（オライリー）</div>
+      <div class="resource-desc">入力デバイスと人間の認知の関係を心理学の観点から解説。キーボード設計の「なぜ」に興味が湧いた人に。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Ben Eater — Keyboard Matrix</div>
+      <div class="resource-desc">YouTubeで「ben eater keyboard」と検索。実際のハードウェアを使ってキーボードマトリクスを一から作る動画。視覚的に超わかりやすい。</div>
+      <a class="resource-link" href="https://www.youtube.com/@BenEater" target="_blank">YouTube: Ben Eater →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH3 ===== -->
+<div class="chapter-section" id="ch3" style="--ch-accent:#0891b2">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🖥️</span>
+    <div><div class="chapter-num">第3章</div><div class="chapter-name">ディスプレイの魔法</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">LearnOpenGL.com</div>
+      <div class="resource-desc">グラフィックスプログラミングを一から学べる日本語対応の超良質サイト。ピクセル・テクスチャ・シェーダーの仕組みを手を動かして学べる。</div>
+      <a class="resource-link" href="https://learnopengl.com" target="_blank">learnopengl.com →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Shadertoy</div>
+      <div class="resource-desc">ブラウザでシェーダーをリアルタイムに書いて動かせる。他の人のシェーダーのコードを読んでピクセルがどう計算されるか体験できる。</div>
+      <a class="resource-link" href="https://www.shadertoy.com" target="_blank">shadertoy.com →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">ゲームエンジンアーキテクチャ</div>
+      <div class="resource-author">Jason Gregory（SBクリエイティブ）</div>
+      <div class="resource-desc">フレームバッファ・レンダリングパイプライン・GPUの使い方をゲームエンジン視点で解説。第3章の延長線上にある一冊。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Acerola（YouTube）</div>
+      <div class="resource-desc">グラフィックスプログラミングを楽しく解説するYouTubeチャンネル。レイトレーシング・シェーダー・レンダリング技法を視覚的に説明。</div>
+      <a class="resource-link" href="https://www.youtube.com/@Acerola_t" target="_blank">YouTube: Acerola →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH4 ===== -->
+<div class="chapter-section" id="ch4" style="--ch-accent:#d97706">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🌐</span>
+    <div><div class="chapter-num">第4章</div><div class="chapter-name">ネットワークの旅</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">マスタリングTCP/IP 入門編</div>
+      <div class="resource-author">竹下隆史ほか（オーム社）</div>
+      <div class="resource-desc">日本のネットワーク入門書の超定番。IPアドレス・TCP・DNSをイラスト豊富にわかりやすく解説。エンジニア必読の一冊。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Cloudflare Learning Center</div>
+      <div class="resource-desc">HTTP・DNS・TLS・CDNなどネットワーク技術を平易に解説した記事が充実。現場エンジニアが書いているので実践的でわかりやすい。</div>
+      <a class="resource-link" href="https://www.cloudflare.com/learning/" target="_blank">cloudflare.com/learning →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">Designing Data-Intensive Applications</div>
+      <div class="resource-author">Martin Kleppmann（O'Reilly）</div>
+      <div class="resource-desc">分散システム・ネットワーク・データベースを統合的に学べる現代エンジニア必読書。「DDIA」と呼ばれる名著。日本語訳あり。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Julia Evans のzines</div>
+      <div class="resource-desc">「How DNS Works」など難しいネットワーク概念をコミック形式で解説するzineシリーズ。無料版もある。楽しく正確に学べる。</div>
+      <a class="resource-link" href="https://jvns.ca" target="_blank">jvns.ca →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH5 ===== -->
+<div class="chapter-section" id="ch5" style="--ch-accent:#16a34a">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">📝</span>
+    <div><div class="chapter-num">第5章</div><div class="chapter-name">テキストエディタの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Build Your Own Text Editor</div>
+      <div class="resource-desc">CでミニViを作るハンズオンチュートリアル。Gap Bufferやキー入力処理を実際にコーディングしながら学べる。約1000行のC。</div>
+      <a class="resource-link" href="https://viewsourcecode.org/snaptoken/kilo/" target="_blank">viewsourcecode.org →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">実践Vim — 思考のスピードで編集しよう</div>
+      <div class="resource-author">Drew Neil（オライリー）</div>
+      <div class="resource-desc">Vimの操作法だけでなく「テキスト編集」の思想を学べる。エディタの設計思想を理解することで第5章の内容がより深まる。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Crafting Interpreters</div>
+      <div class="resource-desc">字句解析・構文解析・インタープリタを一から作る無料オンライン書籍。シンタックスハイライトの仕組みの理解が深まる。</div>
+      <a class="resource-link" href="https://craftinginterpreters.com" target="_blank">craftinginterpreters.com →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">tsoding — Building a Text Editor</div>
+      <div class="resource-desc">ライブコーディングでテキストエディタをゼロから作る動画シリーズ。Gap Bufferの実装が実際のコードで見られる。YouTube「tsoding」で検索。</div>
+      <a class="resource-link" href="https://www.youtube.com/@TsodingDaily" target="_blank">YouTube: tsoding →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH6 ===== -->
+<div class="chapter-section" id="ch6" style="--ch-accent:#2563eb">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🌏</span>
+    <div><div class="chapter-num">第6章</div><div class="chapter-name">ブラウザの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Inside look at modern web browser（Chrome Developers）</div>
+      <div class="resource-desc">Googleが公開したブラウザの仕組みを解説する4部作記事。DOMツリー・レイアウト・コンポジットの流れが図入りで解説されている。</div>
+      <a class="resource-link" href="https://developer.chrome.com/blog/inside-browser-part1" target="_blank">Chrome Developers →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">web.dev（Google）</div>
+      <div class="resource-desc">Webパフォーマンス・Core Web Vitals・CSSの仕組みをGoogleエンジニアが解説。ブラウザのレンダリングを最適化したい人に。</div>
+      <a class="resource-link" href="https://web.dev" target="_blank">web.dev →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">MDN Web Docs</div>
+      <div class="resource-desc">HTML・CSS・JavaScriptの公式リファレンス。ブラウザがどうAPIを実装しているかの仕様が詳しく書かれている。</div>
+      <a class="resource-link" href="https://developer.mozilla.org/ja/" target="_blank">MDN Web Docs →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">Webブラウザセキュリティ</div>
+      <div class="resource-author">米内貴志（ラムダノート）</div>
+      <div class="resource-desc">ブラウザのセキュリティモデル（Same-Origin Policy・CSP・CORS）を丁寧に解説。第6章の先にある「なぜ安全？」を学べる。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH7 ===== -->
+<div class="chapter-section" id="ch7" style="--ch-accent:#7c3aed">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🔊</span>
+    <div><div class="chapter-num">第7章</div><div class="chapter-name">音の仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Web Audio API — MDN</div>
+      <div class="resource-desc">ブラウザでサウンドをプログラムから生成・操作するAPIのリファレンス。オシレーターやフィルターを使ってサイン波を実際に生成できる。</div>
+      <a class="resource-link" href="https://developer.mozilla.org/ja/docs/Web/API/Web_Audio_API" target="_blank">MDN Web Audio API →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">The Science of Sound</div>
+      <div class="resource-author">Thomas Rossing（Springer）</div>
+      <div class="resource-desc">音波・共鳴・音楽の物理学を丁寧に解説する教科書。サンプリングやフーリエ変換の背景知識が身につく。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">3Blue1Brown — But what is the Fourier Transform?</div>
+      <div class="resource-desc">サンプリングとフーリエ変換を視覚的に美しく解説するYouTube動画。音がデジタルになる仕組みの数学的背景を直感的に理解できる。</div>
+      <a class="resource-link" href="https://www.youtube.com/watch?v=spUNpyF58BY" target="_blank">YouTube: 3Blue1Brown →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Audacity（フリーソフト）</div>
+      <div class="resource-desc">無料の音声編集ソフト。波形・スペクトラム・サンプリングレートを実際に見ながら操作できる。第7章の内容を「実機」で確かめるのに最適。</div>
+      <a class="resource-link" href="https://www.audacityteam.org" target="_blank">audacityteam.org →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH8 ===== -->
+<div class="chapter-section" id="ch8" style="--ch-accent:#0f766e">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">💾</span>
+    <div><div class="chapter-num">第8章</div><div class="chapter-name">ファイルシステムの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">詳解 Linuxカーネル 第3版</div>
+      <div class="resource-author">Daniel Bovet / Marco Cesati（オライリー）</div>
+      <div class="resource-desc">inode・VFS・ファイルシステムの実装をLinuxカーネルのコードレベルで解説。上級者向けだが第8章の知識があれば読み始められる。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Linux Filesystem Hierarchy Standard</div>
+      <div class="resource-desc">/etc /usr /var などLinuxのディレクトリ構造の標準仕様書。なぜそこにファイルがあるのかが明確にわかる。</div>
+      <a class="resource-link" href="https://refspecs.linuxfoundation.org/fhs.shtml" target="_blank">linuxfoundation.org →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">ふつうのLinuxプログラミング</div>
+      <div class="resource-author">青木峰郎（SBクリエイティブ）</div>
+      <div class="resource-desc">ファイルディスクリプタ・inode・パーミッションをプログラムから触りながら学べる。C言語でシステムコールを叩く実践書。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Hussein Nasser — File Systems</div>
+      <div class="resource-desc">YouTube「Hussein Nasser file system」で検索。SSD・HDD・RAID・ファイルシステムの選び方を実践的に解説するエンジニア向け動画。</div>
+      <a class="resource-link" href="https://www.youtube.com/@hnasr" target="_blank">YouTube: Hussein Nasser →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH9 ===== -->
+<div class="chapter-section" id="ch9" style="--ch-accent:#dc2626">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🔐</span>
+    <div><div class="chapter-num">第9章</div><div class="chapter-name">暗号とHTTPSの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">暗号技術入門 第3版</div>
+      <div class="resource-author">結城浩（SBクリエイティブ）</div>
+      <div class="resource-desc">シーザー暗号からRSA・AES・TLSまでを日本語で丁寧に解説した決定版。第9章の内容を数式レベルで理解したいならこれ一択。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">暗号解読（上・下）</div>
+      <div class="resource-author">サイモン・シン（新潮文庫）</div>
+      <div class="resource-desc">シーザー暗号からエニグマ・RSAまで暗号の歴史をスパイ小説のように読める一般書。技術書が苦手でも楽しめる超おすすめ本。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Cryptopals Crypto Challenges</div>
+      <div class="resource-desc">暗号を「破る」ことで仕組みを学ぶプログラミング課題集。Base64・ECB/CBC・RSA攻撃を実際にコーディングして理解できる。</div>
+      <a class="resource-link" href="https://cryptopals.com" target="_blank">cryptopals.com →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">How HTTPS works（comics）</div>
+      <div class="resource-desc">HTTPSの仕組みをコミック形式で解説する無料サイト。TLSハンドシェイクの流れが視覚的に完璧に理解できる。英語だが絵でわかる。</div>
+      <a class="resource-link" href="https://howhttps.works" target="_blank">howhttps.works →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH10 ===== -->
+<div class="chapter-section" id="ch10" style="--ch-accent:#0369a1">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🧠</span>
+    <div><div class="chapter-num">第10章</div><div class="chapter-name">OSとプロセスの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">オペレーティングシステム（恐竜本）</div>
+      <div class="resource-author">Silberschatz / Galvin / Gagne</div>
+      <div class="resource-desc">通称「恐竜本」。プロセス・スレッド・スケジューリング・仮想メモリをこれ以上なく丁寧に解説するCS学科の定番教科書。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">OSDev.org</div>
+      <div class="resource-desc">自作OSを作るコミュニティ。ブートローダーからカーネル・スケジューラまで実装方法が詳しく書かれている。</div>
+      <a class="resource-link" href="https://wiki.osdev.org" target="_blank">wiki.osdev.org →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">Linuxのしくみ（改訂版）</div>
+      <div class="resource-author">武内覚（技術評論社）</div>
+      <div class="resource-desc">プロセス・メモリ・ファイルシステム・ネットワークをLinuxの実測データとグラフで解説。実験しながら学べる日本語の良書。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">MIT 6.828: Operating System Engineering</div>
+      <div class="resource-desc">MITのOS授業が無料公開されている。xv6という教育用OSを実際に修改するラボ課題が本格的。講義動画・資料・課題すべて無料。</div>
+      <a class="resource-link" href="https://pdos.csail.mit.edu/6.828/" target="_blank">MIT 6.828 →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH11 ===== -->
+<div class="chapter-section" id="ch11" style="--ch-accent:#9333ea">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🗄️</span>
+    <div><div class="chapter-num">第11章</div><div class="chapter-name">データベースの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">SQLアンチパターン</div>
+      <div class="resource-author">Bill Karwin（オライリー）</div>
+      <div class="resource-desc">やりがちなDB設計の失敗パターンとその解決策を解説。インデックスの使い方・トランザクション設計を実践的に学べる。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Use The Index, Luke!</div>
+      <div class="resource-desc">SQLのインデックスを徹底解説するサイト。B木・複合インデックス・クエリ最適化の仕組みが第11章の延長で詳しく学べる。</div>
+      <a class="resource-link" href="https://use-the-index-luke.com" target="_blank">use-the-index-luke.com →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">Designing Data-Intensive Applications</div>
+      <div class="resource-author">Martin Kleppmann（O'Reilly）</div>
+      <div class="resource-desc">分散DB・レプリケーション・トランザクションを現代エンジニア向けに解説した名著。「DDIA」と略される必読書。日本語訳あり。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">CMU Database Systems（講義動画）</div>
+      <div class="resource-desc">カーネギーメロン大学のDB授業がYouTubeで無料公開。B木の実装・クエリオプティマイザ・トランザクション管理を大学院レベルで学べる。</div>
+      <a class="resource-link" href="https://www.youtube.com/@CMUDatabaseGroup" target="_blank">YouTube: CMU DB →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH12 ===== -->
+<div class="chapter-section" id="ch12" style="--ch-accent:#b45309">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🎮</span>
+    <div><div class="chapter-num">第12章</div><div class="chapter-name">GPUとグラフィックスの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">LearnOpenGL.com</div>
+      <div class="resource-desc">頂点・シェーダー・テクスチャ・ライティングを段階的に実装しながら学べる超良質サイト。第12章の内容をコードで体験できる。</div>
+      <a class="resource-link" href="https://learnopengl.com" target="_blank">learnopengl.com →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">リアルタイムレンダリング 第4版</div>
+      <div class="resource-author">Akenine-Möller ほか</div>
+      <div class="resource-desc">グラフィックスエンジニアのバイブル。シェーダー・レイトレーシング・PBR（物理ベースレンダリング）まで網羅した辞書的名著。</div>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Sebastian Lague（YouTube）</div>
+      <div class="resource-desc">レイトレーシング・メッシュ生成・シェーダーを視覚的に美しく実装する動画シリーズ。「なぜきれい？」の背景がよくわかる。</div>
+      <a class="resource-link" href="https://www.youtube.com/@SebastianLague" target="_blank">YouTube: Sebastian Lague →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">GPU Gems（NVIDIA）</div>
+      <div class="resource-desc">NVIDIAが公開するGPUプログラミングの技術書。影・水面・煙などのリアルなシェーダー実装を無料でオンライン公開。</div>
+      <a class="resource-link" href="https://developer.nvidia.com/gpugems/gpugems/foreword" target="_blank">GPU Gems →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH13 ===== -->
+<div class="chapter-section" id="ch13" style="--ch-accent:#ec4899">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🧪</span>
+    <div><div class="chapter-num">第13章</div><div class="chapter-name">深層学習の基礎</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">ゼロから作るDeep Learning ①②③</div>
+      <div class="resource-author">斎藤康毅（オライリー）</div>
+      <div class="resource-desc">Pythonでニューラルネットをゼロから実装する日本語の決定版シリーズ。①は順伝播・逆伝播、②はRNN、③はフレームワーク実装。必読。</div>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">TensorFlow Playground</div>
+      <div class="resource-desc">ブラウザ上でニューラルネットの学習をリアルタイムに可視化できるツール。層の数・活性化関数・学習率を変えて動きを直感的に体験できる。</div>
+      <a class="resource-link" href="https://playground.tensorflow.org" target="_blank">playground.tensorflow.org →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-course">🎓 コース</div>
+      <div class="resource-title">fast.ai — Practical Deep Learning</div>
+      <div class="resource-desc">「コードを先に、理論は後」のトップダウン式で深層学習を学ぶ無料コース。数学が苦手でも最先端モデルを使えるようになる。</div>
+      <a class="resource-link" href="https://course.fast.ai" target="_blank">course.fast.ai →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">3Blue1Brown — Neural Networks</div>
+      <div class="resource-desc">ニューラルネットワークと逆伝播を視覚的に美しく解説するYouTube動画シリーズ（全4本）。数学のイメージが一気に掴める。</div>
+      <a class="resource-link" href="https://www.youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi" target="_blank">YouTube: 3Blue1Brown →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH14 ===== -->
+<div class="chapter-section" id="ch14" style="--ch-accent:#0891b2">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">⚡</span>
+    <div><div class="chapter-num">第14章</div><div class="chapter-name">トランスフォーマーの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">The Illustrated Transformer（Jay Alammar）</div>
+      <div class="resource-desc">Transformerの仕組みをアニメーションと図で徹底解説した伝説的ブログ記事。世界中のAI研究者が「これで理解した」と言う必読記事。</div>
+      <a class="resource-link" href="https://jalammar.github.io/illustrated-transformer/" target="_blank">jalammar.github.io →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-paper">📄 論文</div>
+      <div class="resource-title">Attention Is All You Need（原論文）</div>
+      <div class="resource-author">Vaswani et al., Google（2017）</div>
+      <div class="resource-desc">Transformerを提案した歴史的論文。意外と読みやすく8ページ。第14章を学んだ後なら数式の意味がわかるはず。</div>
+      <a class="resource-link" href="https://arxiv.org/abs/1706.03762" target="_blank">arxiv.org →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-course">🎓 コース</div>
+      <div class="resource-title">Hugging Face NLP Course</div>
+      <div class="resource-desc">TransformerライブラリのHugging Faceが提供する無料NLPコース。Tokenizer・モデル・Fine-tuningを実際にコードで学べる。</div>
+      <a class="resource-link" href="https://huggingface.co/learn/nlp-course/" target="_blank">huggingface.co/learn →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Andrej Karpathy — Let's build GPT from scratch</div>
+      <div class="resource-desc">元OpenAIのAndrej KarpathyがPythonでGPTをゼロから実装する2時間動画。Transformerの実装を完全に理解できる世界最高の教材の一つ。</div>
+      <a class="resource-link" href="https://www.youtube.com/watch?v=kCc8FmEb1nY" target="_blank">YouTube: Karpathy GPT →</a>
+      <span class="resource-level lvl-advanced">🔴 上級</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CH15 ===== -->
+<div class="chapter-section" id="ch15" style="--ch-accent:#7c3aed">
+  <div class="chapter-section-header">
+    <span class="chapter-icon">🤖</span>
+    <div><div class="chapter-num">第15章</div><div class="chapter-name">LLMの仕組み</div></div>
+  </div>
+  <div class="resources-grid">
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">LLM Visualization（bbycroft.net）</div>
+      <div class="resource-desc">GPT-2の全計算過程を3Dで可視化したインタラクティブサイト。トークンが層を経て変換される様子をリアルタイムで確認できる圧巻のツール。</div>
+      <a class="resource-link" href="https://bbycroft.net/llm" target="_blank">bbycroft.net/llm →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-book">📖 本</div>
+      <div class="resource-title">大規模言語モデル入門</div>
+      <div class="resource-author">山田育矢 ほか（技術評論社）</div>
+      <div class="resource-desc">GPT・BERT・T5などのLLMアーキテクチャを日本語で体系的に解説。ファインチューニング・プロンプトエンジニアリングの実践も含む。</div>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-video">▶️ 動画</div>
+      <div class="resource-title">Andrej Karpathy — Intro to LLMs</div>
+      <div class="resource-desc">LLMとは何か・どう学習されるか・RLHFの仕組みを1時間で解説する動画。第15章の内容が深まる最高の補講。英語だが字幕あり。</div>
+      <a class="resource-link" href="https://www.youtube.com/watch?v=zjkBMFhNj_g" target="_blank">YouTube: Intro to LLMs →</a>
+      <span class="resource-level lvl-intermediate">🔵 中級</span>
+    </div>
+    <div class="resource-card">
+      <div class="resource-type type-site">🌐 サイト</div>
+      <div class="resource-title">Hugging Face Hub</div>
+      <div class="resource-desc">数万のオープンソースLLMを無料でブラウザから試せるプラットフォーム。GPT・Llama・Mistralなど実際に対話しながら性能の違いを体感できる。</div>
+      <a class="resource-link" href="https://huggingface.co/chat" target="_blank">huggingface.co/chat →</a>
+      <span class="resource-level lvl-beginner">🟢 入門</span>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center;padding:32px 0 48px;color:var(--text2)">
+  <div style="font-size:32px;margin-bottom:8px">🚀</div>
+  <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px">学び続けることが、最強のスキルです</div>
+  <div style="font-size:14px;line-height:1.8">
+    難しそうに見えても、<strong>好奇心のまま手を動かす</strong>のが一番の近道。<br>
+    CS Adventure はあなたの出発点。ここからは無限の世界が広がっています。
+  </div>
+  <div style="margin-top:20px">
+    <a href="index.html"><button class="btn-next" style="align-self:center">チャプター一覧へ戻る 🏠</button></a>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
